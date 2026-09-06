@@ -19,7 +19,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Product>Gaggle</Product>
     <Description>Push-to-talk voice chat for Condor Soaring Simulator</Description>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
