@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Forms;
+using Gaggle.Input;
 
 namespace Gaggle.Configuration;
 
@@ -26,6 +27,14 @@ public sealed class AppConfig
 
     // ------------------------------------------------------------ Push to talk
 
+    /// <summary>
+    /// What the user holds to talk — a key or a joystick button. Null in configs
+    /// written before joystick support, in which case <see cref="TalkKey"/> is
+    /// migrated into it on load.
+    /// </summary>
+    public PttBinding? PushToTalk { get; set; }
+
+    /// <summary>Superseded by <see cref="PushToTalk"/>; kept so old configs migrate.</summary>
     public Keys TalkKey { get; set; } = Keys.CapsLock;
 
     public Keys ConfirmKey { get; set; } = Keys.Enter;
@@ -100,7 +109,7 @@ public sealed class AppConfig
 
         if (!File.Exists(ConfigPath))
         {
-            var fresh = new AppConfig();
+            var fresh = new AppConfig { PushToTalk = PttBinding.FromKey(Keys.CapsLock) };
             fresh.Save();
             return fresh;
         }
@@ -108,13 +117,18 @@ public sealed class AppConfig
         try
         {
             string json = File.ReadAllText(ConfigPath);
-            return JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
+            AppConfig loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
+
+            // Configs written before joystick support only have TalkKey.
+            loaded.PushToTalk ??= PttBinding.FromKey(loaded.TalkKey);
+
+            return loaded;
         }
         catch (Exception ex) when (ex is JsonException or IOException)
         {
             // A corrupt config should not stop the app starting; fall back to defaults
             // and leave the bad file in place so the user can see what happened.
-            return new AppConfig();
+            return new AppConfig { PushToTalk = PttBinding.FromKey(Keys.CapsLock) };
         }
     }
 

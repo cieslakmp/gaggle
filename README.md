@@ -56,7 +56,23 @@ Gaggle lives in the notification area. On first launch:
    `%APPDATA%\Gaggle`, with progress shown in the overlay and the tray tooltip.
 2. Right-click → **Microphone** → pick your headset.
 3. Start Condor. The tray icon turns blue when it's ready.
-4. Hold **Caps Lock** (the default PTT key), speak, release.
+4. Right-click → **Push-to-talk…** to bind a key or a joystick button, if you want
+   something other than the Caps Lock default.
+5. Hold the push-to-talk control, speak, release.
+
+## Push-to-talk binding
+
+Right-click the tray icon → **Push-to-talk…**, press **Change**, then press the key or
+joystick button you want. Whatever you press next becomes the binding.
+
+Keyboard keys are swallowed by the hook, so Condor never sees them. **Joystick buttons
+cannot be swallowed** — Condor reads the device directly — so pick a button the sim
+does not already use, or it will do both things at once. The settings window says so
+when a button is bound.
+
+Joysticks are read through the legacy winmm API, which sees **32 buttons across 16
+devices**. That covers ordinary HOTAS and button boxes; a device exposing more than 32
+buttons would need DirectInput instead.
 
 ## Configuration
 
@@ -68,7 +84,7 @@ Gaggle lives in the notification area. On first launch:
 | `ProcessName` | `Condor` | Process to watch, without `.exe` |
 | `OpenChatKey` | `Back` | Key that opens Condor's chat prompt |
 | `SendChatKey` | `Return` | Key that submits the message |
-| `TalkKey` | `CapsLock` | Hold to record |
+| `PushToTalk` | Caps Lock | Key or joystick button held to record. Set it from the tray, not by hand |
 | `ConfirmKey` / `CancelKey` | `Return` / `Escape` | Only active while a review is open |
 | `ReviewBeforeSending` | `true` | Set `false` for hands-free instant send |
 | `KeyDelayMs` | `30` | Gap between injected keystrokes |

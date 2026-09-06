@@ -3,6 +3,7 @@ using System.Windows.Forms;
 using Gaggle.Audio;
 using Gaggle.Condor;
 using Gaggle.Configuration;
+using Gaggle.Input;
 using Gaggle.Interop;
 using Gaggle.Speech;
 using Gaggle.Text;
@@ -28,6 +29,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ChatSender _sender;
     private readonly MicrophoneRecorder _recorder = new();
     private readonly PushToTalkHook _hook = new();
+    private readonly JoystickWatcher _joystick = new();
+    private readonly PttController _controller;
     private readonly ReviewOverlay _overlay = new();
     private readonly System.Windows.Forms.Timer _recordingLimit;
     private readonly System.Windows.Forms.Timer _statusTimeout;
@@ -80,11 +83,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _recorder.Failed += ex => BeginInvokeOnUi(() => ShowStatus($"Microphone error: {ex.Message}", isError: true));
 
-        ConfigureHook();
+        _controller = new PttController(_hook, _joystick);
+        ConfigureInput();
 
         try
         {
             _hook.Install();
+            _controller.Start();
         }
         catch (InvalidOperationException ex)
         {
@@ -101,16 +106,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     // ------------------------------------------------------------------ Wiring
 
-    private void ConfigureHook()
+    private void ConfigureInput()
     {
-        _hook.TalkKey = _config.TalkKey;
         _hook.ConfirmKey = _config.ConfirmKey;
         _hook.CancelKey = _config.CancelKey;
 
-        _hook.TalkPressed += () => BeginInvokeOnUi(StartRecording);
-        _hook.TalkReleased += () => BeginInvokeOnUi(StopRecordingAndTranscribe);
         _hook.Confirmed += () => BeginInvokeOnUi(SendPending);
         _hook.Cancelled += () => BeginInvokeOnUi(DiscardPending);
+
+        _controller.Pressed += () => BeginInvokeOnUi(StartRecording);
+        _controller.Released += () => BeginInvokeOnUi(StopRecordingAndTranscribe);
+        _controller.Binding = _config.PushToTalk ?? PttBinding.FromKey(_config.TalkKey);
     }
 
     /// <summary>
@@ -149,6 +155,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
 
+        menu.Items.Add("Push-to-talk…", null, (_, _) => ShowSettings());
         menu.Items.Add("Open config file", null, (_, _) => OpenConfig());
         menu.Items.Add("Reload config", null, (_, _) => ReloadConfig());
 
@@ -479,6 +486,29 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private static string Truncate(string text, int maxLength) =>
         text.Length <= maxLength ? text : text[..maxLength];
 
+    private void ShowSettings()
+    {
+        // ShowDialog keeps pumping messages, so both the keyboard hook and the
+        // joystick poll timer stay live and can capture a new binding.
+        using var form = new SettingsForm(_controller, _controller.Binding);
+
+        if (form.ShowDialog() != DialogResult.OK)
+        {
+            return;
+        }
+
+        _controller.Binding = form.Binding;
+        _config.PushToTalk = form.Binding;
+
+        if (form.Binding.IsKeyboard)
+        {
+            _config.TalkKey = form.Binding.Key;
+        }
+
+        _config.Save();
+        RefreshStatus();
+    }
+
     private void OpenConfig()
     {
         _config.Save(); // Make sure the file exists before opening it.
@@ -507,9 +537,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.Language = reloaded.Language;
         _config.MaxMessageLength = reloaded.MaxMessageLength;
 
-        _hook.TalkKey = _config.TalkKey;
+        _config.PushToTalk = reloaded.PushToTalk;
+
         _hook.ConfirmKey = _config.ConfirmKey;
         _hook.CancelKey = _config.CancelKey;
+        _controller.Binding = _config.PushToTalk ?? PttBinding.FromKey(_config.TalkKey);
 
         _watcher.ProcessName = _config.ProcessName;
         _recordingLimit.Interval = Math.Max(1, _config.MaxRecordingSeconds) * 1000;
@@ -539,7 +571,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         string state = !_hook.IsInstalled ? "keyboard hook not installed"
             : _transcriber is null ? "no speech model"
             : !_watcher.IsRunning ? $"waiting for {_config.ProcessName}"
-            : $"ready — hold {_config.TalkKey} to talk";
+            : $"ready — hold {_controller.Binding.Describe()}";
 
         _statusItem.Text = state;
         _tray.Text = Truncate($"Gaggle — {state}", TrayTextLimit);
@@ -552,7 +584,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (disposing)
         {
-            _hook.Dispose();
+            _controller.Dispose();
             _recordingLimit.Dispose();
             _statusTimeout.Dispose();
             _recorder.Dispose();

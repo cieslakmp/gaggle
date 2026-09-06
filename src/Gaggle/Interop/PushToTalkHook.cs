@@ -38,6 +38,15 @@ internal sealed class PushToTalkHook : IDisposable
     /// <summary>Set by the app while a transcript is waiting to be confirmed.</summary>
     public bool ReviewPending { get; set; }
 
+    /// <summary>
+    /// While true, the next key press is reported via <see cref="KeyCaptured"/> and
+    /// swallowed, instead of being matched against the bindings. Used by the settings
+    /// window so a binding can be captured even when it is not the focused window.
+    /// </summary>
+    public bool Capturing { get; set; }
+
+    public event Action<Keys>? KeyCaptured;
+
     public event Action? TalkPressed;
 
     public event Action? TalkReleased;
@@ -101,7 +110,19 @@ internal sealed class PushToTalkHook : IDisposable
         bool isUp = message is NativeMethods.WM_KEYUP or NativeMethods.WM_SYSKEYUP;
         var key = (Keys)info.vkCode;
 
-        if (key == TalkKey)
+        if (Capturing)
+        {
+            // Swallow everything while listening, so the key being bound cannot also
+            // trigger whatever it is currently bound to.
+            if (isDown)
+            {
+                KeyCaptured?.Invoke(key);
+            }
+
+            return 1;
+        }
+
+        if (key != Keys.None && key == TalkKey)
         {
             if (isDown && !_talkKeyDown)
             {

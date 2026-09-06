@@ -20,7 +20,7 @@ transcribing a WAV through `WhisperTranscriber` and `MessageSanitiser` directly.
 
 ## Invariants
 
-These four look like arbitrary complexity and are not. Breaking any of them produces
+These look like arbitrary complexity and are not. Breaking any of them produces
 a build that compiles, runs, and silently does nothing useful.
 
 **Keystrokes must be injected as scan codes.** Condor reads the keyboard through
@@ -43,6 +43,11 @@ and a full-screen sim would likely minimise. Hence `WS_EX_NOACTIVATE` plus
 `ShowWithoutActivation`, with confirm/cancel keys read by the global hook rather
 than by the window. Do not add focusable controls to it.
 
+**Joystick buttons cannot be swallowed.** A keyboard PTT key is hidden from Condor by
+the hook. A joystick button is read by Condor directly from the device, so there is no
+way to intercept it — the settings window warns about this rather than pretending
+otherwise. Do not add code that claims to suppress a bound button.
+
 **Audio must be RMS-gated before transcription.** Fed near-silence, Whisper
 confidently invents stock phrases from its training data — "Thank you.", "Thanks for
 watching!". Without the gate in `TranscribeAsync` those get broadcast to a live race.
@@ -52,7 +57,8 @@ watching!". Without the gate in `TranscribeAsync` those get broadcast to a live 
 
 | Path | Role |
 |---|---|
-| `Interop/` | Win32 P/Invoke, scan-code injection, the PTT hook |
+| `Interop/` | Win32 P/Invoke, scan-code injection, the PTT hook, winmm joystick |
+| `Input/` | Push-to-talk binding, joystick polling, the keyboard/joystick merge |
 | `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires |
 | `Speech/` | Whisper.net wrapper and ggml model download |
 | `Text/` | Transcript sanitising before anything reaches chat |
