@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Forms;
 using Gaggle.Input;
+using Gaggle.Speech;
 
 namespace Gaggle.Configuration;
 
@@ -75,8 +76,28 @@ public sealed class AppConfig
     /// <summary>ggml model file name, resolved inside the Gaggle data folder.</summary>
     public string WhisperModelFile { get; set; } = "ggml-base.en.bin";
 
-    /// <summary>Language hint, or "auto" to let Whisper decide.</summary>
-    public string Language { get; set; } = "en";
+    /// <summary>
+    /// The language the pilot speaks: a two-letter Whisper code, or "auto". Anything
+    /// other than "en" is translated to English before it reaches chat, and requires
+    /// a multilingual model — the ".en" builds contain English and nothing else.
+    /// </summary>
+    public string Language { get; set; } = SpokenLanguage.EnglishCode;
+
+    /// <summary>
+    /// Decoder threads, or 0 for Whisper.net's default of every hardware thread.
+    ///
+    /// Transcription runs while Condor is rendering, so the default can leave the sim
+    /// fighting for cores during a long transcription. Lower this — physical core
+    /// count, or half of the logical count — if a message causes a frame-rate hitch.
+    /// </summary>
+    public int TranscriptionThreads { get; set; }
+
+    /// <summary>
+    /// Trims Whisper's fixed 30-second analysis window to the length actually spoken.
+    /// Much faster on push-to-talk-length clips, at some risk to the transcript, which
+    /// is why it can be turned off. See <see cref="Speech.TranscriptionOptions"/>.
+    /// </summary>
+    public bool FastTranscription { get; set; } = true;
 
     // -------------------------------------------------------------------- Text
 

@@ -63,9 +63,17 @@ the hook. A joystick button is read by Condor directly from the device, so there
 way to intercept it — the settings window warns about this rather than pretending
 otherwise. Do not add code that claims to suppress a bound button.
 
+**A non-English language needs a multilingual model.** The `ggml-*.en.bin` builds
+contain English only and have no translate task at all. Loading one and then asking it
+for Polish does not error — it produces confident English nonsense. `LoadModelAsync`
+refuses that pairing on purpose; do not "simplify" the check away. `WithTranslate()`
+only ever goes *into* English, so the language list can never gain an output language.
+
 **Audio must be RMS-gated before transcription.** Fed near-silence, Whisper
 confidently invents stock phrases from its training data — "Thank you.", "Thanks for
-watching!". Without the gate in `TranscribeAsync` those get broadcast to a live race.
+watching!". The multilingual builds reach for subtitle credits instead ("Subtitles by
+the Amara.org community"), and translation carries those into English whatever was
+spoken. Without the gate in `TranscribeAsync` those get broadcast to a live race.
 `MessageSanitiser` is the second line of defence, not the first.
 
 ## Layout
@@ -75,7 +83,7 @@ watching!". Without the gate in `TranscribeAsync` those get broadcast to a live 
 | `Interop/` | Win32 P/Invoke, scan-code injection, the PTT hook, winmm joystick |
 | `Input/` | Push-to-talk binding, joystick polling, the keyboard/joystick merge |
 | `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires |
-| `Speech/` | Whisper.net wrapper and ggml model download |
+| `Speech/` | Whisper.net wrapper, language list, decoding options, ggml model download |
 | `Text/` | Transcript sanitising before anything reaches chat |
 | `Condor/` | Process/foreground detection and the chat macro |
 | `Ui/` | Tray icon, state machine, review overlay, settings window |
@@ -90,6 +98,10 @@ P/Invoke declarations in `Interop/NativeMethods.cs` mirror Win32 names and signa
 exactly, including underscores and Hungarian parameter names. That is deliberate —
 matching MSDN is worth more than matching .NET naming. The relevant analyser rules
 are disabled for this reason.
+
+Language and decoding settings are read fresh for every utterance rather than baked
+into the loaded model, so switching language costs nothing. Only `WhisperModelFile`
+forces a reload.
 
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the

@@ -43,6 +43,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private bool _busy;
     private bool _downloading;
 
+    /// <summary>Set when the chosen language needs a model the chosen model is not.</summary>
+    private bool _needsMultilingualModel;
+
     public TrayApplicationContext()
     {
         _config = AppConfig.Load();
@@ -153,6 +156,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         models.DropDownOpening += (_, _) => PopulateModels(models);
         menu.Items.Add(models);
 
+        var languages = new ToolStripMenuItem("Language");
+        languages.DropDownOpening += (_, _) => PopulateLanguages(languages);
+        menu.Items.Add(languages);
+
         menu.Items.Add(new ToolStripSeparator());
 
         menu.Items.Add("Push-to-talk…", null, (_, _) => ShowSettings());
@@ -171,6 +178,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (!ModelInstaller.IsInstalled(_config.ModelPath))
         {
+            // "No model at all" is the more useful thing to report, so clear any
+            // stale language mismatch before the status line is redrawn.
+            _needsMultilingualModel = false;
             RefreshStatus();
             _tray.ShowBalloonTip(
                 8000,
@@ -180,12 +190,33 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
+        if (!ModelInstaller.IsMultilingualFile(_config.WhisperModelFile)
+            && !SpokenLanguage.IsEnglish(_config.Language))
+        {
+            // An ".en" build contains English and nothing else, and has no translate
+            // task at all. Loading it here would work; asking it for Polish would then
+            // produce confident English nonsense with no error to explain it.
+            _needsMultilingualModel = true;
+            _transcriber?.Dispose();
+            _transcriber = null;
+
+            RefreshStatus();
+            _tray.ShowBalloonTip(
+                8000,
+                "Gaggle",
+                $"{SpokenLanguage.Describe(_config.Language)} needs a multilingual model. "
+                    + "Pick Small or Medium (multilingual) under Speech model.",
+                ToolTipIcon.Warning);
+            return;
+        }
+
+        _needsMultilingualModel = false;
+
         try
         {
             string modelPath = _config.ModelPath;
-            string language = _config.Language;
 
-            WhisperTranscriber loaded = await Task.Run(() => WhisperTranscriber.Load(modelPath, language));
+            WhisperTranscriber loaded = await Task.Run(() => WhisperTranscriber.Load(modelPath));
 
             _transcriber?.Dispose();
             _transcriber = loaded;
@@ -282,8 +313,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 return;
             }
 
-            string raw = await transcriber.TranscribeAsync(audio);
-            string? message = MessageSanitiser.Clean(raw, _config.MaxMessageLength);
+            var options = new TranscriptionOptions
+            {
+                Language = _config.Language,
+                Threads = _config.TranscriptionThreads,
+                AudioContextSize = _config.FastTranscription
+                    ? TranscriptionOptions.AudioContextFor(MicrophoneRecorder.CalculateDuration(audio))
+                    : 0,
+            };
+
+            string raw = await transcriber.TranscribeAsync(audio, options);
+
+            // Non-English speech comes back translated, but a stray untranslated word
+            // would lose its accented letters silently on the way into chat.
+            string? message = MessageSanitiser.Clean(
+                raw,
+                _config.MaxMessageLength,
+                foldToAscii: options.TranslateToEnglish);
 
             if (message is null)
             {
@@ -411,6 +457,46 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
+    /// <summary>
+    /// Language is read fresh for every utterance rather than baked into the loaded
+    /// model, so switching is instant — the only work is re-checking that the current
+    /// model can actually speak the language just chosen.
+    /// </summary>
+    private void PopulateLanguages(ToolStripMenuItem parent)
+    {
+        parent.DropDownItems.Clear();
+
+        foreach (SpokenLanguage language in SpokenLanguage.Available)
+        {
+            string label = SpokenLanguage.IsEnglish(language.Code)
+                ? language.Name
+                : $"{language.Name} → English";
+
+            var item = new ToolStripMenuItem(label)
+            {
+                Checked = string.Equals(_config.Language, language.Code, StringComparison.OrdinalIgnoreCase),
+            };
+
+            item.Click += async (_, _) => await SelectLanguageAsync(language);
+            parent.DropDownItems.Add(item);
+        }
+    }
+
+    private async Task SelectLanguageAsync(SpokenLanguage language)
+    {
+        if (string.Equals(_config.Language, language.Code, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _config.Language = language.Code;
+        _config.Save();
+
+        // No reload needed for the model itself; this re-runs the multilingual check
+        // and puts the transcriber back if a previous mismatch had cleared it.
+        await LoadModelAsync();
+    }
+
     private async Task SelectModelAsync(ModelInstaller.ModelChoice choice, bool installed)
     {
         if (_downloading)
@@ -535,6 +621,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.SilenceThresholdRms = reloaded.SilenceThresholdRms;
         _config.WhisperModelFile = reloaded.WhisperModelFile;
         _config.Language = reloaded.Language;
+        _config.TranscriptionThreads = reloaded.TranscriptionThreads;
+        _config.FastTranscription = reloaded.FastTranscription;
         _config.MaxMessageLength = reloaded.MaxMessageLength;
 
         _config.PushToTalk = reloaded.PushToTalk;
@@ -569,6 +657,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         bool ready = _watcher.IsRunning && _transcriber is not null && _hook.IsInstalled;
 
         string state = !_hook.IsInstalled ? "keyboard hook not installed"
+            : _needsMultilingualModel ? $"{SpokenLanguage.Describe(_config.Language)} needs a multilingual model"
             : _transcriber is null ? "no speech model"
             : !_watcher.IsRunning ? $"waiting for {_config.ProcessName}"
             : $"ready — hold {_controller.Binding.Describe()}";

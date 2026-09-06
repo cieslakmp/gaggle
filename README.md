@@ -12,8 +12,11 @@ a hand off the stick to type.
 
 > A *gaggle* is the cluster of gliders sharing a thermal. That's who you're talking to.
 
-Speech recognition runs entirely on your own machine. No API key, no account, no cost,
-and no network round-trip in the middle of a race.
+Speak English, Polish, German or Spanish — anything that isn't English is translated
+to English on the way into chat, so the gaggle can read it.
+
+Speech recognition and translation both run entirely on your own machine. No API key,
+no account, no cost, and no network round-trip in the middle of a race.
 
 ## Download
 
@@ -38,7 +41,8 @@ hold PTT key  ──►  record mic  ──►  Whisper (local)  ──►  revi
    it**, so Condor never sees it and won't fire whatever it has bound there.
 2. The microphone is captured at 16 kHz mono — the exact format Whisper wants.
 3. On key release, [whisper.cpp](https://github.com/ggerganov/whisper.cpp) transcribes
-   the clip locally, in about a second.
+   the clip locally, in about a second — translating it to English first if you were
+   speaking something else.
 4. The transcript appears in a small always-on-top overlay that **never takes focus**.
    Press Enter to send, Escape to discard.
 5. Gaggle taps Backspace to open Condor's chat, types the message, and presses Enter.
@@ -52,8 +56,10 @@ Gaggle lives in the notification area — there is no main window.
 2. Right-click → **Microphone** → pick your headset.
 3. Right-click → **Push-to-talk…** to bind a key or a joystick button, unless the
    Caps Lock default suits you.
-4. Start Condor. The tray icon turns blue when everything is ready.
-5. Hold your push-to-talk control, speak, release.
+4. Right-click → **Language** if you speak something other than English. This needs a
+   multilingual model — see below.
+5. Start Condor. The tray icon turns blue when everything is ready.
+6. Hold your push-to-talk control, speak, release.
 
 ## Push-to-talk binding
 
@@ -88,8 +94,49 @@ buttons would need DirectInput instead.
 | `MaxRecordingSeconds` | `15` | Recording is abandoned past this |
 | `SilenceThresholdRms` | `0.005` | Below this, audio is never transcribed |
 | `WhisperModelFile` | `ggml-base.en.bin` | Model in `%APPDATA%\Gaggle` |
-| `Language` | `en` | Or `auto` |
+| `Language` | `en` | `en`, `pl`, `de`, `es` or `auto`. Set it from the tray |
+| `TranscriptionThreads` | `0` | `0` uses every hardware thread. Lower it if Condor stutters |
+| `FastTranscription` | `true` | Trims Whisper's 30-second window to what you actually said |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
+
+## Languages
+
+Right-click the tray icon → **Language**. English, Polski, Deutsch and Español are
+offered, plus automatic detection.
+
+Everything except English is **translated to English** before it reaches chat. That is
+not a separate translation step — Whisper decodes speech straight into English, so it
+costs no extra model, no extra pass and no network call. It only works in that
+direction: Gaggle can turn Polish speech into English chat, but never the reverse.
+
+Any language other than English needs a **multilingual model**. The `.en` models are
+English-only builds with no other languages and no translate task at all, so Gaggle
+refuses to pair one with a non-English language rather than transcribing nonsense.
+Pick **Small (multilingual)** or **Medium (multilingual)** under **Speech model**.
+
+| Model | Size | Use |
+|---|---|---|
+| Tiny / Base / Small **(English)** | 75 MB – 488 MB | English only, fastest |
+| **Small (multilingual)** | ~488 MB | The realistic floor for Polish, German, Spanish |
+| **Medium (multilingual)** | ~1.5 GB | Best accuracy, roughly 3× slower |
+
+Automatic detection is offered but is the least reliable option: Whisper decides from
+the opening moments of the clip, and a two-second radio call does not give it much to
+go on. Picking the language explicitly is worth it if you fly in one language.
+
+### If transcription is slow
+
+Transcription competes with Condor for the CPU, and the multilingual models are
+heavier than the English ones. Two knobs, both in the config file:
+
+- `FastTranscription` (on by default) trims Whisper's fixed 30-second analysis window
+  down to the length you actually spoke. This is the big saving on short radio calls.
+  Turn it off if transcripts start losing words.
+- `TranscriptionThreads` defaults to every hardware thread on the machine. If a message
+  causes a frame-rate hitch, set it to your physical core count or half your logical
+  one — Condor needs cores too.
+
+If it is still too slow, use Small rather than Medium.
 
 ## Etiquette
 

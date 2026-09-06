@@ -11,15 +11,34 @@ public static class ModelInstaller
     /// <summary>Minimum gap between progress reports.</summary>
     private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(200);
 
-    /// <summary>Models worth offering, smallest first. Sizes are approximate.</summary>
+    /// <summary>
+    /// Models worth offering, English-only first and then multilingual, each group
+    /// smallest first. Sizes are approximate.
+    ///
+    /// The ".en" builds are faster and marginally better at English, but they contain
+    /// only English and have no translate task at all, so they cannot serve anything
+    /// but <see cref="SpokenLanguage.EnglishCode"/>. The multilingual builds are the
+    /// same models without that restriction, and they are the ones that can turn
+    /// Polish, German or Spanish speech into English chat.
+    /// </summary>
     public static readonly IReadOnlyList<ModelChoice> Available =
     [
         new("ggml-tiny.en.bin", "Tiny (English)", "~75 MB, fastest, noticeably weaker on jargon"),
         new("ggml-base.en.bin", "Base (English)", "~148 MB, good default for short radio calls"),
         new("ggml-small.en.bin", "Small (English)", "~488 MB, best accuracy, ~2x slower"),
+        new("ggml-small.bin", "Small (multilingual)", "~488 MB, needed for Polish/German/Spanish"),
+        new("ggml-medium.bin", "Medium (multilingual)", "~1.5 GB, best non-English accuracy, ~3x slower"),
     ];
 
     public static bool IsInstalled(string modelPath) => File.Exists(modelPath);
+
+    /// <summary>
+    /// True when a ggml file name is a multilingual build. Takes the file name rather
+    /// than a <see cref="ModelChoice"/> so a hand-edited <c>WhisperModelFile</c> that
+    /// names no listed model is still classified correctly.
+    /// </summary>
+    public static bool IsMultilingualFile(string fileName) =>
+        !fileName.EndsWith(".en.bin", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Downloads the model to a temporary file and moves it into place once complete,
@@ -79,7 +98,11 @@ public static class ModelInstaller
         File.Move(tempPath, destinationPath, overwrite: true);
     }
 
-    public sealed record ModelChoice(string FileName, string Name, string Notes);
+    public sealed record ModelChoice(string FileName, string Name, string Notes)
+    {
+        /// <summary>Whether this build can handle anything other than English.</summary>
+        public bool IsMultilingual => IsMultilingualFile(FileName);
+    }
 
     /// <summary>
     /// Bytes received so far, and the total when the server declares one. A null
