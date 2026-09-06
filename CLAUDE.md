@@ -26,6 +26,13 @@ tests through VSTest, and xunit.v3 hosts the new platform itself, so do not add
 Microsoft.NET.Test.Sdk or xunit.runner.visualstudio back: they reintroduce the VSTest
 targets and `dotnet test` fails outright.
 
+## Releasing
+
+Tagging `v*` triggers `.github/workflows/release.yml`, which builds, tests, packages
+and opens a draft release. The tag must be annotated — its message becomes the release
+notes — and `<Version>` in the csproj must match the tag, or the workflow fails on
+purpose.
+
 ## Invariants
 
 These look like arbitrary complexity and are not. Breaking any of them produces

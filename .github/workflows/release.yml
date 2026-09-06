@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+# Needed to create the release and upload the artifact.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Same constraint as CI: net10.0-windows and WinForms only build on Windows.
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          # Full history and tags, so the annotated tag message can be read back
+          # and used as the release notes.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version from the tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          "tag=$tag"         >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Releasing $tag as version $version"
+
+      # A tag that disagrees with the assembly version would ship a binary
+      # stamped with the wrong number, which is invisible until someone reports
+      # a bug against a version that was never built.
+      - name: Check the project version matches the tag
+        shell: pwsh
+        run: |
+          $csproj = Get-Content src/Gaggle/Gaggle.csproj -Raw
+          if ($csproj -notmatch '<Version>([^<]+)</Version>') { throw "No <Version> element in Gaggle.csproj" }
+          $project = $Matches[1]
+          $expected = "${{ steps.version.outputs.version }}"
+          if ($project -ne $expected) {
+            throw "Tag is $expected but Gaggle.csproj says $project. Bump the project version and retag."
+          }
+          Write-Output "Version $project matches the tag"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      # A release must never ship code that fails its own tests.
+      - name: Test
+        run: dotnet test -c Release --no-build
+
+      - name: Publish
+        run: dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path publish/Gaggle.exe)) { throw "Gaggle.exe missing from publish output" }
+          if (-not (Test-Path publish/runtimes/win-x64/whisper.dll)) { throw "whisper native libraries missing from publish output" }
+
+          $name = "Gaggle-${{ steps.version.outputs.version }}-win-x64.zip"
+
+          # Ship the executable and the native runtimes only; the pdb is noise for users.
+          Compress-Archive -Path publish/Gaggle.exe, publish/runtimes -DestinationPath $name -CompressionLevel Optimal
+
+          "name=$name" >> $env:GITHUB_OUTPUT
+          Write-Output ("{0} is {1:N1} MB" -f $name, ((Get-Item $name).Length / 1MB))
+
+      - name: Write release notes from the tag message
+        id: notes
+        shell: pwsh
+        run: |
+          # An annotated tag carries its own changelog; fall back to generated
+          # notes for a lightweight tag.
+          #
+          # git returns multi-line output as an array of lines, so each part is
+          # joined back into a string before use; interpolating the array directly
+          # yields the literal text "System.Object[]".
+          $tag = "${{ steps.version.outputs.tag }}"
+          $subject = (git tag -l --format='%(contents:subject)' $tag) -join "`n"
+          $body = (git tag -l --format='%(contents:body)' $tag) -join "`n"
+          $text = (@($subject, "", $body) -join "`n").Trim()
+
+          if ([string]::IsNullOrWhiteSpace($text)) {
+            "generate=true" >> $env:GITHUB_OUTPUT
+            Write-Output "Lightweight tag; letting GitHub generate the notes"
+          } else {
+            Set-Content -Path release-notes.md -Value $text -Encoding utf8
+            "generate=false" >> $env:GITHUB_OUTPUT
+            Write-Output "Using the annotated tag message"
+          }
+
+      # Created as a draft on purpose: the notes come from a tag message, and a
+      # release is public and permanent. Review, then publish.
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $args = @(
+            "release", "create", "${{ steps.version.outputs.tag }}",
+            "--draft",
+            "--title", "Gaggle ${{ steps.version.outputs.version }}",
+            "${{ steps.package.outputs.name }}#Gaggle ${{ steps.version.outputs.version }} (Windows x64)"
+          )
+
+          if ("${{ steps.notes.outputs.generate }}" -eq "true") {
+            $args += "--generate-notes"
+          } else {
+            $args += @("--notes-file", "release-notes.md")
+          }
+
+          gh @args
+
+      - name: Summary
+        shell: pwsh
+        run: |
+          "### Draft release ${{ steps.version.outputs.tag }} created" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "Asset: ``${{ steps.package.outputs.name }}``" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "Review the notes, then publish it from the Releases page." >> $env:GITHUB_STEP_SUMMARY

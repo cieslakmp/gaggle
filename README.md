@@ -66,6 +66,21 @@ This produces `Gaggle.exe` (~118 MB) **plus a `runtimes/` folder** holding whisp
 native libraries, which Whisper.net probes for at load time. Ship both — the exe alone
 will fail when it tries to load the speech model.
 
+## Releasing
+
+Bump `<Version>` in `src/Gaggle/Gaggle.csproj`, commit, then tag and push:
+
+```bash
+git tag -a v0.3.0 -m "Gaggle 0.3.0" && git push --follow-tags origin main
+```
+
+The release workflow builds, runs the tests, packages `Gaggle.exe` with its
+`runtimes` folder, and creates a **draft** release using the annotated tag message as
+the notes. Review it on the Releases page and publish when it reads right.
+
+It refuses to build if `<Version>` and the tag disagree, so a binary can never ship
+stamped with a version that was never released.
+
 ## First run
 
 Gaggle lives in the notification area. On first launch:
