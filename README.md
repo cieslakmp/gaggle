@@ -38,11 +38,15 @@ Everything runs offline.
 dotnet build src/Gaggle/Gaggle.csproj -c Release
 ```
 
-Single-file self-contained executable:
+Self-contained build needing no .NET install on the target machine:
 
 ```bash
 dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
 ```
+
+This produces `Gaggle.exe` (~118 MB) **plus a `runtimes/` folder** holding whisper.cpp's
+native libraries, which Whisper.net probes for at load time. Ship both — the exe alone
+will fail when it tries to load the speech model.
 
 ## First run
 
@@ -98,11 +102,15 @@ transcription, and a blocklist catches the rest. See `Text/MessageSanitiser.cs`.
 
 ## Not yet verified
 
-Written against documented behaviour but not yet confirmed against a live install:
+The project builds clean and the app starts, but the following are written against
+documented behaviour and not yet confirmed against a live Condor install:
 
 - Condor's actual chat message length limit (`MaxMessageLength` is a guess)
 - Whether `ChatOpenDelayMs` is enough for the chat prompt on all systems
 - Whether Condor 2 uses `Condor.exe` as the process name in all installs
+- Whether scan-code injection reaches Condor's chat prompt at all — the core
+  assumption, and the first thing to test
+- End-to-end transcription, which needs a model downloaded from the tray menu
 
 If Condor is running elevated, Gaggle must be too — UIPI silently blocks input
 injection from a lower integrity level.

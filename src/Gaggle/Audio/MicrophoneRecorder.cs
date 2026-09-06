@@ -13,7 +13,7 @@ public sealed class MicrophoneRecorder : IDisposable
     private const int BitsPerSample = 16;
 
     private readonly object _sync = new();
-    private WaveInEvent? _waveIn;
+    private WaveIn? _waveIn;
     private MemoryStream? _buffer;
     private WaveFileWriter? _writer;
 
@@ -26,9 +26,9 @@ public sealed class MicrophoneRecorder : IDisposable
     {
         var devices = new List<string>();
 
-        for (int i = 0; i < WaveInEvent.DeviceCount; i++)
+        for (int i = 0; i < WaveIn.DeviceCount; i++)
         {
-            devices.Add(WaveInEvent.GetCapabilities(i).ProductName);
+            devices.Add(WaveIn.GetCapabilities(i).ProductName);
         }
 
         return devices;
@@ -46,7 +46,7 @@ public sealed class MicrophoneRecorder : IDisposable
             _buffer = new MemoryStream();
             _writer = new WaveFileWriter(_buffer, new WaveFormat(SampleRate, BitsPerSample, Channels));
 
-            _waveIn = new WaveInEvent
+            _waveIn = new WaveIn
             {
                 DeviceNumber = deviceIndex < 0 ? 0 : deviceIndex,
                 WaveFormat = new WaveFormat(SampleRate, BitsPerSample, Channels),
