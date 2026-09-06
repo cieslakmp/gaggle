@@ -56,7 +56,7 @@ public sealed class CondorWatcher : IDisposable
             return IntPtr.Zero;
         }
 
-        NativeMethods.GetWindowThreadProcessId(foreground, out uint foregroundPid);
+        _ = NativeMethods.GetWindowThreadProcessId(foreground, out uint foregroundPid);
 
         foreach (Process process in Process.GetProcessesByName(_processName))
         {

@@ -445,7 +445,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ReloadConfig()
     {
-        AppConfig reloaded = AppConfig.Load();
+        var reloaded = AppConfig.Load();
 
         _config.ProcessName = reloaded.ProcessName;
         _config.OpenChatKey = reloaded.OpenChatKey;
@@ -510,6 +510,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _statusTimeout.Dispose();
             _recorder.Dispose();
             _transcriber?.Dispose();
+            _sender.Dispose();
             _watcher.Dispose();
             _overlay.Dispose();
 

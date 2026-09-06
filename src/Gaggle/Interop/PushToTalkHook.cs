@@ -84,7 +84,7 @@ internal sealed class PushToTalkHook : IDisposable
             return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
         }
 
-        var info = Marshal.PtrToStructure<NativeMethods.KBDLLHOOKSTRUCT>(lParam);
+        NativeMethods.KBDLLHOOKSTRUCT info = Marshal.PtrToStructure<NativeMethods.KBDLLHOOKSTRUCT>(lParam);
 
         // Never react to our own injected keystrokes, or typing a message would
         // retrigger the hook and loop.
@@ -96,7 +96,7 @@ internal sealed class PushToTalkHook : IDisposable
             return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
         }
 
-        int message = (int)wParam;
+        int message = wParam.ToInt32();
         bool isDown = message is NativeMethods.WM_KEYDOWN or NativeMethods.WM_SYSKEYDOWN;
         bool isUp = message is NativeMethods.WM_KEYUP or NativeMethods.WM_SYSKEYUP;
         var key = (Keys)info.vkCode;

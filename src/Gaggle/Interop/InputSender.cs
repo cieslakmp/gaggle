@@ -37,23 +37,33 @@ internal static class InputSender
         return NativeMethods.GetKeyboardLayout(threadId);
     }
 
-    public static void KeyDown(int virtualKey, IntPtr layout) => SendKey(virtualKey, layout, keyUp: false);
+    /// <summary>Returns false if Windows refused the injection — see <see cref="SendKey"/>.</summary>
+    public static bool KeyDown(int virtualKey, IntPtr layout) => SendKey(virtualKey, layout, keyUp: false);
 
-    public static void KeyUp(int virtualKey, IntPtr layout) => SendKey(virtualKey, layout, keyUp: true);
+    /// <inheritdoc cref="KeyDown"/>
+    public static bool KeyUp(int virtualKey, IntPtr layout) => SendKey(virtualKey, layout, keyUp: true);
 
-    public static void Tap(int virtualKey, IntPtr layout, int holdMs)
+    /// <inheritdoc cref="KeyDown"/>
+    public static bool Tap(int virtualKey, IntPtr layout, int holdMs)
     {
-        KeyDown(virtualKey, layout);
+        bool down = KeyDown(virtualKey, layout);
         Thread.Sleep(holdMs);
-        KeyUp(virtualKey, layout);
+        bool up = KeyUp(virtualKey, layout);
+
+        return down && up;
     }
 
-    private static void SendKey(int virtualKey, IntPtr layout, bool keyUp)
+    /// <summary>
+    /// Returns false when SendInput accepted no events. In practice that means either
+    /// the key has no scan code on this layout, or — far more likely — UIPI blocked
+    /// us because the target process runs at a higher integrity level than we do.
+    /// </summary>
+    private static bool SendKey(int virtualKey, IntPtr layout, bool keyUp)
     {
         uint scan = NativeMethods.MapVirtualKeyEx((uint)virtualKey, NativeMethods.MAPVK_VK_TO_VSC, layout);
         if (scan == 0)
         {
-            return; // No key for this VK on this layout.
+            return false; // No key for this VK on this layout.
         }
 
         uint flags = NativeMethods.KEYEVENTF_SCANCODE;
@@ -84,7 +94,9 @@ internal static class InputSender
             },
         };
 
-        NativeMethods.SendInput(1, [input], Marshal.SizeOf<NativeMethods.INPUT>());
+        uint accepted = NativeMethods.SendInput(1, [input], Marshal.SizeOf<NativeMethods.INPUT>());
+
+        return accepted == 1;
     }
 
     /// <summary>
@@ -107,17 +119,39 @@ internal static class InputSender
         bool needCtrl = (shiftState & 2) != 0;
         bool needAlt = (shiftState & 4) != 0;
 
-        if (needShift) KeyDown(VkShift, layout);
-        if (needCtrl) KeyDown(VkControl, layout);
-        if (needAlt) KeyDown(VkAltGr, layout);
+        if (needShift)
+        {
+            KeyDown(VkShift, layout);
+        }
 
-        Tap(virtualKey, layout, Math.Max(1, keyDelayMs / 2));
+        if (needCtrl)
+        {
+            KeyDown(VkControl, layout);
+        }
 
-        if (needAlt) KeyUp(VkAltGr, layout);
-        if (needCtrl) KeyUp(VkControl, layout);
-        if (needShift) KeyUp(VkShift, layout);
+        if (needAlt)
+        {
+            KeyDown(VkAltGr, layout);
+        }
 
-        return true;
+        bool typed = Tap(virtualKey, layout, Math.Max(1, keyDelayMs / 2));
+
+        if (needAlt)
+        {
+            KeyUp(VkAltGr, layout);
+        }
+
+        if (needCtrl)
+        {
+            KeyUp(VkControl, layout);
+        }
+
+        if (needShift)
+        {
+            KeyUp(VkShift, layout);
+        }
+
+        return typed;
     }
 
     /// <summary>

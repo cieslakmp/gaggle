@@ -67,9 +67,9 @@ Gaggle lives in the notification area. On first launch:
 |---|---|---|
 | `ProcessName` | `Condor` | Process to watch, without `.exe` |
 | `OpenChatKey` | `Back` | Key that opens Condor's chat prompt |
-| `SendChatKey` | `Enter` | Key that submits the message |
+| `SendChatKey` | `Return` | Key that submits the message |
 | `TalkKey` | `CapsLock` | Hold to record |
-| `ConfirmKey` / `CancelKey` | `Enter` / `Escape` | Only active while a review is open |
+| `ConfirmKey` / `CancelKey` | `Return` / `Escape` | Only active while a review is open |
 | `ReviewBeforeSending` | `true` | Set `false` for hands-free instant send |
 | `KeyDelayMs` | `30` | Gap between injected keystrokes |
 | `ChatOpenDelayMs` | `200` | Wait for the chat prompt to appear |
@@ -102,18 +102,33 @@ transcription, and a blocklist catches the rest. See `Text/MessageSanitiser.cs`.
 
 ## Not yet verified
 
-The project builds clean and the app starts, but the following are written against
-documented behaviour and not yet confirmed against a live Condor install:
+Verified: the project builds clean, the app starts, and the speech path works —
+`ggml-base.en.bin` loads in ~330 ms and transcribes a 6.7 s clip in ~1.1 s, with the
+sanitiser correctly rejecting silence, hallucinations and annotations.
 
+Not yet confirmed against a live Condor install:
+
+- Whether scan-code injection reaches Condor's chat prompt at all — the core
+  assumption, and the first thing to test
 - Condor's actual chat message length limit (`MaxMessageLength` is a guess)
 - Whether `ChatOpenDelayMs` is enough for the chat prompt on all systems
 - Whether Condor 2 uses `Condor.exe` as the process name in all installs
-- Whether scan-code injection reaches Condor's chat prompt at all — the core
-  assumption, and the first thing to test
-- End-to-end transcription, which needs a model downloaded from the tray menu
+- Live microphone capture, as opposed to the synthesised audio used in testing
 
-If Condor is running elevated, Gaggle must be too — UIPI silently blocks input
-injection from a lower integrity level.
+If Condor is running elevated, Gaggle must be too — UIPI blocks input injection from a
+lower integrity level. Gaggle detects this: `SendInput` accepting zero events on the
+first keystroke is reported as "Windows blocked the keystrokes" rather than failing
+silently.
+
+## Code style
+
+`.editorconfig` holds the conventions, and the project builds with
+`TreatWarningsAsErrors` plus `latest-recommended` analysers, so style and correctness
+rules are enforced at build time rather than in review.
+
+A handful of analyser rules are turned off in `.editorconfig`, each with a comment
+saying why — mostly rules that fight P/Invoke code, where matching the Win32
+signature exactly matters more than matching .NET naming conventions.
 
 ## Etiquette
 

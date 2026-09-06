@@ -12,6 +12,7 @@ public enum SendOutcome
     NothingToSend,
     Busy,
     UnsupportedCharacters,
+    InjectionBlocked,
 }
 
 public readonly record struct SendResult(SendOutcome Outcome, string? Detail = null)
@@ -27,6 +28,9 @@ public readonly record struct SendResult(SendOutcome Outcome, string? Detail = n
         SendOutcome.NothingToSend => "Nothing to send.",
         SendOutcome.Busy => "Still sending the previous message.",
         SendOutcome.UnsupportedCharacters => $"Cannot type on this keyboard layout: {Detail}",
+        SendOutcome.InjectionBlocked =>
+            "Windows blocked the keystrokes. Condor is probably running as administrator — "
+            + "run Gaggle as administrator too.",
         _ => "Unknown result.",
     };
 }
@@ -37,13 +41,15 @@ public readonly record struct SendResult(SendOutcome Outcome, string? Detail = n
 /// Runs off the UI thread because it deliberately sleeps between keystrokes, and
 /// serialises itself so two messages can never interleave into one chat line.
 /// </summary>
-public sealed class ChatSender
+public sealed class ChatSender : IDisposable
 {
     private readonly CondorWatcher _watcher;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private DateTime _lastSentUtc = DateTime.MinValue;
 
     public ChatSender(CondorWatcher watcher) => _watcher = watcher;
+
+    public void Dispose() => _gate.Dispose();
 
     public Task<SendResult> SendAsync(string message, AppConfig config)
     {
@@ -96,7 +102,13 @@ public sealed class ChatSender
         InputSender.ReleaseHeldModifiers(layout);
         Thread.Sleep(config.KeyDelayMs);
 
-        InputSender.Tap((int)config.OpenChatKey, layout, config.KeyDelayMs / 2);
+        // The first tap is the canary: if Windows refuses this one, every following
+        // keystroke would be swallowed too, and we would silently do nothing.
+        if (!InputSender.Tap((int)config.OpenChatKey, layout, config.KeyDelayMs / 2))
+        {
+            return new SendResult(SendOutcome.InjectionBlocked);
+        }
+
         Thread.Sleep(config.ChatOpenDelayMs);
 
         var skipped = new List<char>();

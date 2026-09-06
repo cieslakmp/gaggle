@@ -18,7 +18,7 @@ internal static class TrayIcons
     {
         using var bitmap = new Bitmap(32, 32);
 
-        using (Graphics graphics = Graphics.FromImage(bitmap))
+        using (var graphics = Graphics.FromImage(bitmap))
         {
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.Clear(Color.Transparent);
