@@ -8,15 +8,23 @@ C# on .NET 10, WinForms, x64 only. See [README.md](README.md) for user-facing do
 ## Commands
 
 ```bash
-dotnet build src/Gaggle/Gaggle.csproj -c Release
+dotnet build -c Release
+dotnet test -c Release
 dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
 ```
 
 The project builds with `TreatWarningsAsErrors`, so **a new warning is a broken
 build**. Fix the cause; only suppress in `.editorconfig`, with a comment saying why.
 
-There is no test project yet. Changes to the speech path can be exercised by
-transcribing a WAV through `WhisperTranscriber` and `MessageSanitiser` directly.
+Tests live in `tests/Gaggle.Tests` (xunit.v3). They cover the sanitiser, bindings and
+their config migration, config load/save, download progress and the RMS gate — the
+logic that can be checked without Condor, a microphone or a joystick. Anything
+touching `Interop/` needs real hardware and is verified by hand.
+
+`global.json` opts into Microsoft.Testing.Platform. The .NET 10 SDK refuses to run
+tests through VSTest, and xunit.v3 hosts the new platform itself, so do not add
+Microsoft.NET.Test.Sdk or xunit.runner.visualstudio back: they reintroduce the VSTest
+targets and `dotnet test` fails outright.
 
 ## Invariants
 
@@ -63,7 +71,8 @@ watching!". Without the gate in `TranscribeAsync` those get broadcast to a live 
 | `Speech/` | Whisper.net wrapper and ggml model download |
 | `Text/` | Transcript sanitising before anything reaches chat |
 | `Condor/` | Process/foreground detection and the chat macro |
-| `Ui/` | Tray icon, state machine, review overlay |
+| `Ui/` | Tray icon, state machine, review overlay, settings window |
+| `tests/Gaggle.Tests/` | xunit.v3 suite for the hardware-free logic |
 
 `Ui/TrayApplicationContext.cs` owns the state machine and is where the pieces meet:
 `Idle → Recording → Transcribing → Review → Idle`.

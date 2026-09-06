@@ -35,8 +35,24 @@ Everything runs offline.
 ## Build
 
 ```bash
-dotnet build src/Gaggle/Gaggle.csproj -c Release
+dotnet build -c Release
 ```
+
+## Tests
+
+```bash
+dotnet test -c Release
+```
+
+65 tests covering the parts that can be checked without Condor or a microphone: the
+transcript sanitiser, push-to-talk bindings and their config migration, config
+load/save, download progress formatting, and the RMS silence gate.
+
+Input injection, the keyboard hook and joystick polling are not covered — they need
+real hardware and a running sim.
+
+Note the `global.json`: the .NET 10 SDK no longer runs tests through VSTest, so the
+repo opts into Microsoft.Testing.Platform, which xunit.v3 hosts directly.
 
 Self-contained build needing no .NET install on the target machine:
 

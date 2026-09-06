@@ -103,21 +103,27 @@ public sealed class AppConfig
     public string ModelPath => Path.Combine(DataDirectory, WhisperModelFile);
 
     /// <summary>Loads config, writing a default file on first run.</summary>
-    public static AppConfig Load()
-    {
-        Directory.CreateDirectory(DataDirectory);
+    public static AppConfig Load() => LoadFrom(ConfigPath);
 
-        if (!File.Exists(ConfigPath))
+    /// <summary>
+    /// Loads from an explicit path. Separate from <see cref="Load"/> so the defaults
+    /// and the legacy-key migration can be tested without touching the real config.
+    /// </summary>
+    public static AppConfig LoadFrom(string path)
+    {
+        EnsureDirectory(path);
+
+        if (!File.Exists(path))
         {
-            var fresh = new AppConfig { PushToTalk = PttBinding.FromKey(Keys.CapsLock) };
-            fresh.Save();
+            AppConfig fresh = CreateDefault();
+            fresh.SaveTo(path);
             return fresh;
         }
 
         try
         {
-            string json = File.ReadAllText(ConfigPath);
-            AppConfig loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? new AppConfig();
+            string json = File.ReadAllText(path);
+            AppConfig loaded = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions) ?? CreateDefault();
 
             // Configs written before joystick support only have TalkKey.
             loaded.PushToTalk ??= PttBinding.FromKey(loaded.TalkKey);
@@ -128,13 +134,27 @@ public sealed class AppConfig
         {
             // A corrupt config should not stop the app starting; fall back to defaults
             // and leave the bad file in place so the user can see what happened.
-            return new AppConfig { PushToTalk = PttBinding.FromKey(Keys.CapsLock) };
+            return CreateDefault();
         }
     }
 
-    public void Save()
+    public void Save() => SaveTo(ConfigPath);
+
+    public void SaveTo(string path)
     {
-        Directory.CreateDirectory(DataDirectory);
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(this, SerializerOptions));
+        EnsureDirectory(path);
+        File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
+    }
+
+    private static AppConfig CreateDefault() => new() { PushToTalk = PttBinding.FromKey(Keys.CapsLock) };
+
+    private static void EnsureDirectory(string path)
+    {
+        string? directory = Path.GetDirectoryName(path);
+
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
     }
 }
