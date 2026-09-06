@@ -109,10 +109,11 @@ not a separate translation step — Whisper decodes speech straight into English
 costs no extra model, no extra pass and no network call. It only works in that
 direction: Gaggle can turn Polish speech into English chat, but never the reverse.
 
-Any language other than English needs a **multilingual model**. The `.en` models are
-English-only builds with no other languages and no translate task at all, so Gaggle
-refuses to pair one with a non-English language rather than transcribing nonsense.
-Pick **Small (multilingual)** or **Medium (multilingual)** under **Speech model**.
+Any language other than English needs a **multilingual model**. Ask an `.en` model for
+Polish and Whisper quietly ignores the request — no error, no warning — and transcribes
+what it heard phonetically as English, so "Lecę w prawo" arrives as "Les W. Pero W.".
+Gaggle refuses that pairing rather than letting it look broken. Pick **Small
+(multilingual)** or **Medium (multilingual)** under **Speech model**.
 
 | Model | Size | Use |
 |---|---|---|

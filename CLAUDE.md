@@ -63,11 +63,16 @@ the hook. A joystick button is read by Condor directly from the device, so there
 way to intercept it — the settings window warns about this rather than pretending
 otherwise. Do not add code that claims to suppress a bound button.
 
-**A non-English language needs a multilingual model.** The `ggml-*.en.bin` builds
-contain English only and have no translate task at all. Loading one and then asking it
-for Polish does not error — it produces confident English nonsense. `LoadModelAsync`
-refuses that pairing on purpose; do not "simplify" the check away. `WithTranslate()`
-only ever goes *into* English, so the language list can never gain an output language.
+**A non-English language needs a multilingual model.** Ask a `ggml-*.en.bin` build for
+Polish and whisper.cpp silently *discards* both the language and the translate request:
+no exception, and nothing logged at any level. It transcribes the audio phonetically as
+English instead — "Lecę w prawo" comes back as "Les W. Pero W." — and `segment.Language`
+still reports `en`. Verified against ggml-base.en.bin and ggml-small.en.bin: the output
+is byte-for-byte identical whether translation was asked for or not, which is how you
+can tell the parameters were ignored. `LoadModelAsync` refuses that pairing on purpose;
+do not "simplify" the check away, because nothing downstream will report the problem.
+`WithTranslate()` only ever goes *into* English, so the language list can never gain an
+output language.
 
 **Audio must be RMS-gated before transcription.** Fed near-silence, Whisper
 confidently invents stock phrases from its training data — "Thank you.", "Thanks for
