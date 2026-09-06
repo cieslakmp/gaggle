@@ -1,14 +1,31 @@
 # Gaggle
 
 [![CI](https://github.com/cieslakmp/gaggle/actions/workflows/ci.yml/badge.svg)](https://github.com/cieslakmp/gaggle/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cieslakmp/gaggle)](https://github.com/cieslakmp/gaggle/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Push-to-talk voice chat for [Condor Soaring Simulator](https://www.condorsoaring.com/).
 
-Hold a key, say your message, and Gaggle transcribes it locally and types it into
-Condor's in-game chat — so you can talk to the gaggle without taking a hand off the
-stick to type.
+Hold a key or a joystick button, say your message, and Gaggle transcribes it locally
+and types it into Condor's in-game chat — so you can talk to the gaggle without taking
+a hand off the stick to type.
 
 > A *gaggle* is the cluster of gliders sharing a thermal. That's who you're talking to.
+
+Speech recognition runs entirely on your own machine. No API key, no account, no cost,
+and no network round-trip in the middle of a race.
+
+## Download
+
+Grab the latest zip from [**Releases**](https://github.com/cieslakmp/gaggle/releases/latest)
+and extract it somewhere permanent. Nothing to install: no .NET runtime, no
+administrator rights.
+
+Keep `Gaggle.exe` and the `runtimes` folder **together** — the executable alone cannot
+load the speech model.
+
+Needs Windows 10 or 11, 64-bit, and about 150 MB for the speech model it downloads on
+first run.
 
 ## How it works
 
@@ -21,77 +38,22 @@ hold PTT key  ──►  record mic  ──►  Whisper (local)  ──►  revi
    it**, so Condor never sees it and won't fire whatever it has bound there.
 2. The microphone is captured at 16 kHz mono — the exact format Whisper wants.
 3. On key release, [whisper.cpp](https://github.com/ggerganov/whisper.cpp) transcribes
-   the clip locally. No API key, no cost, no network round-trip mid-race.
+   the clip locally, in about a second.
 4. The transcript appears in a small always-on-top overlay that **never takes focus**.
    Press Enter to send, Escape to discard.
 5. Gaggle taps Backspace to open Condor's chat, types the message, and presses Enter.
 
-Everything runs offline.
-
-## Requirements
-
-- Windows 10/11 x64
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) to build
-- A Whisper model — downloaded on first run from the tray menu (~148 MB for the default)
-
-## Build
-
-```bash
-dotnet build -c Release
-```
-
-## Tests
-
-```bash
-dotnet test -c Release
-```
-
-65 tests covering the parts that can be checked without Condor or a microphone: the
-transcript sanitiser, push-to-talk bindings and their config migration, config
-load/save, download progress formatting, and the RMS silence gate.
-
-Input injection, the keyboard hook and joystick polling are not covered — they need
-real hardware and a running sim.
-
-Note the `global.json`: the .NET 10 SDK no longer runs tests through VSTest, so the
-repo opts into Microsoft.Testing.Platform, which xunit.v3 hosts directly.
-
-Self-contained build needing no .NET install on the target machine:
-
-```bash
-dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
-```
-
-This produces `Gaggle.exe` (~118 MB) **plus a `runtimes/` folder** holding whisper.cpp's
-native libraries, which Whisper.net probes for at load time. Ship both — the exe alone
-will fail when it tries to load the speech model.
-
-## Releasing
-
-Bump `<Version>` in `src/Gaggle/Gaggle.csproj`, commit, then tag and push:
-
-```bash
-git tag -a v0.3.0 -m "Gaggle 0.3.0" && git push --follow-tags origin main
-```
-
-The release workflow builds, runs the tests, packages `Gaggle.exe` with its
-`runtimes` folder, and creates a **draft** release using the annotated tag message as
-the notes. Review it on the Releases page and publish when it reads right.
-
-It refuses to build if `<Version>` and the tag disagree, so a binary can never ship
-stamped with a version that was never released.
-
 ## First run
 
-Gaggle lives in the notification area. On first launch:
+Gaggle lives in the notification area — there is no main window.
 
 1. Right-click the tray icon → **Speech model** → pick one. It downloads to
    `%APPDATA%\Gaggle`, with progress shown in the overlay and the tray tooltip.
 2. Right-click → **Microphone** → pick your headset.
-3. Start Condor. The tray icon turns blue when it's ready.
-4. Right-click → **Push-to-talk…** to bind a key or a joystick button, if you want
-   something other than the Caps Lock default.
-5. Hold the push-to-talk control, speak, release.
+3. Right-click → **Push-to-talk…** to bind a key or a joystick button, unless the
+   Caps Lock default suits you.
+4. Start Condor. The tray icon turns blue when everything is ready.
+5. Hold your push-to-talk control, speak, release.
 
 ## Push-to-talk binding
 
@@ -110,7 +72,7 @@ buttons would need DirectInput instead.
 ## Configuration
 
 `%APPDATA%\Gaggle\config.json`, created on first run. Edit it from the tray menu
-(**Open config file**), then **Reload config**.
+(**Open config file**), then **Reload config**. No rebuild needed.
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -129,25 +91,11 @@ buttons would need DirectInput instead.
 | `Language` | `en` | Or `auto` |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
 
-## Design notes
+## Etiquette
 
-Four things that are easy to get wrong, and why the code looks the way it does:
-
-**Scan codes, not virtual keys.** Condor reads the keyboard through DirectInput,
-which looks at hardware scan codes. `SendKeys`, `PostMessage`, and virtual-key
-`SendInput` all produce nothing in game. See `Interop/InputSender.cs`.
-
-**A hook, not `RegisterHotKey`.** Push-to-talk needs the key *release*, which
-`RegisterHotKey` never reports. The hook callback must return within ~300 ms or
-Windows silently uninstalls it, so every handler defers its real work.
-
-**The overlay must not take focus.** If it did, Condor would lose the foreground and
-the keystrokes would land in the overlay instead — and a full-screen sim would likely
-minimise. Hence `WS_EX_NOACTIVATE`, with confirm/cancel read by the hook.
-
-**Whisper hallucinates on silence.** Fed an empty channel it confidently produces
-"Thank you." or "Thanks for watching!". An RMS gate rejects quiet audio before
-transcription, and a blocklist catches the rest. See `Text/MessageSanitiser.cs`.
+This types into a live race chat shared with other people. The rate limit is on by
+default, and the review step exists because transcription is never perfect. Please
+leave both on until you trust it.
 
 ## Status
 
@@ -170,6 +118,68 @@ elevated too — UIPI blocks input injection from a lower integrity level. Gaggl
 that case: `SendInput` accepting zero events on the first keystroke is reported as
 "Windows blocked the keystrokes" rather than failing silently.
 
+---
+
+# Building from source
+
+Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download). Windows only — the
+project targets `net10.0-windows` and uses WinForms.
+
+```bash
+dotnet build -c Release
+```
+
+Self-contained build needing no .NET install on the target machine:
+
+```bash
+dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
+```
+
+Despite `PublishSingleFile`, this produces `Gaggle.exe` **plus a `runtimes/` folder**
+holding whisper.cpp's native libraries, which Whisper.net probes for at load time.
+Both must ship together.
+
+## Tests
+
+```bash
+dotnet test -c Release
+```
+
+65 tests over the parts that can be checked without Condor, a microphone or a
+joystick: the transcript sanitiser, push-to-talk bindings and their config migration,
+config load and save, download progress formatting, and the RMS silence gate.
+
+Input injection, the keyboard hook and joystick polling are not covered — they need
+real hardware and a running sim, and are verified by hand.
+
+Note the `global.json`: the .NET 10 SDK no longer runs tests through VSTest, so the
+repo opts into Microsoft.Testing.Platform, which xunit.v3 hosts directly. Adding
+`Microsoft.NET.Test.Sdk` or `xunit.runner.visualstudio` back would reintroduce the
+VSTest targets and break `dotnet test` outright.
+
+## Design notes
+
+Five things that are easy to get wrong, and why the code looks the way it does:
+
+**Scan codes, not virtual keys.** Condor reads the keyboard through DirectInput,
+which looks at hardware scan codes. `SendKeys`, `PostMessage`, and virtual-key
+`SendInput` all produce nothing in game. See `Interop/InputSender.cs`.
+
+**A hook, not `RegisterHotKey`.** Push-to-talk needs the key *release*, which
+`RegisterHotKey` never reports. The hook callback must return within ~300 ms or
+Windows silently uninstalls it, so every handler defers its real work.
+
+**The overlay must not take focus.** If it did, Condor would lose the foreground and
+the keystrokes would land in the overlay instead — and a full-screen sim would likely
+minimise. Hence `WS_EX_NOACTIVATE`, with confirm/cancel read by the hook.
+
+**Whisper hallucinates on silence.** Fed an empty channel it confidently produces
+"Thank you." or "Thanks for watching!". An RMS gate rejects quiet audio before
+transcription, and a blocklist catches the rest. See `Text/MessageSanitiser.cs`.
+
+**Joystick buttons cannot be suppressed.** Unlike a keyboard key, a bound button is
+still seen by Condor. There is no interception point; the UI warns instead.
+
 ## Code style
 
 `.editorconfig` holds the conventions, and the project builds with
@@ -180,11 +190,20 @@ A handful of analyser rules are turned off in `.editorconfig`, each with a comme
 saying why — mostly rules that fight P/Invoke code, where matching the Win32
 signature exactly matters more than matching .NET naming conventions.
 
-## Etiquette
+## Releasing
 
-This types into a live race chat shared with other people. The rate limit is on by
-default and the review step exists because transcription is never perfect. Please
-leave both on until you trust it.
+Bump `<Version>` in `src/Gaggle/Gaggle.csproj`, commit, then tag and push:
+
+```bash
+git tag -a v0.3.0 -m "Gaggle 0.3.0" && git push --follow-tags origin main
+```
+
+The release workflow builds, runs the tests, packages `Gaggle.exe` with its
+`runtimes` folder, and opens a **draft** release using the annotated tag message as
+the notes. Review it on the Releases page and publish when it reads right.
+
+It fails before building if `<Version>` and the tag disagree, so a binary can never
+ship stamped with a version that was never released.
 
 ## License
 
