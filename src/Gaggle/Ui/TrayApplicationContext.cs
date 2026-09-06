@@ -32,9 +32,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly System.Windows.Forms.Timer _recordingLimit;
     private readonly System.Windows.Forms.Timer _statusTimeout;
 
+    /// <summary>NotifyIcon.Text throws above this length.</summary>
+    private const int TrayTextLimit = 63;
+
     private WhisperTranscriber? _transcriber;
     private string? _pendingMessage;
     private bool _busy;
+    private bool _downloading;
 
     public TrayApplicationContext()
     {
@@ -402,33 +406,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private async Task SelectModelAsync(ModelInstaller.ModelChoice choice, bool installed)
     {
+        if (_downloading)
+        {
+            ShowStatus("A model download is already running.", isError: true);
+            return;
+        }
+
         string destination = Path.Combine(AppConfig.DataDirectory, choice.FileName);
 
-        if (!installed)
+        if (!installed && !await DownloadModelAsync(choice, destination))
         {
-            DialogResult answer = MessageBox.Show(
-                $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
-                "Gaggle",
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Question);
-
-            if (answer != DialogResult.OK)
-            {
-                return;
-            }
-
-            _tray.Text = "Gaggle — downloading model…";
-
-            try
-            {
-                await ModelInstaller.DownloadAsync(choice.FileName, destination);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Download failed: {ex.Message}", "Gaggle", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                RefreshStatus();
-                return;
-            }
+            return;
         }
 
         _config.WhisperModelFile = choice.FileName;
@@ -436,6 +424,60 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         await LoadModelAsync();
     }
+
+    /// <summary>
+    /// Downloads a model, reporting progress in the overlay and the tray tooltip.
+    /// These files run to hundreds of megabytes, so silence here reads as a hang.
+    /// </summary>
+    private async Task<bool> DownloadModelAsync(ModelInstaller.ModelChoice choice, string destination)
+    {
+        DialogResult answer = MessageBox.Show(
+            $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
+            "Gaggle",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (answer != DialogResult.OK)
+        {
+            return false;
+        }
+
+        // Constructed on the UI thread, so its callbacks arrive there too.
+        var progress = new Progress<ModelInstaller.DownloadProgress>(report =>
+        {
+            string text = $"Downloading {choice.Name} — {report.Describe()}";
+            _overlay.ShowStatus(text);
+            _tray.Text = Truncate($"Gaggle — {text}", TrayTextLimit);
+        });
+
+        _downloading = true;
+        _busy = true; // Push-to-talk would have no model to use anyway.
+        _statusTimeout.Stop();
+        _tray.Icon = TrayIcons.Create(TrayIcons.Working);
+
+        try
+        {
+            await ModelInstaller.DownloadAsync(choice.FileName, destination, progress);
+            ShowStatus($"{choice.Name} installed.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _overlay.HideOverlay();
+            MessageBox.Show($"Download failed: {ex.Message}", "Gaggle", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+        finally
+        {
+            _downloading = false;
+            _busy = false;
+            RefreshStatus();
+        }
+    }
+
+    /// <summary>NotifyIcon.Text throws above 63 characters.</summary>
+    private static string Truncate(string text, int maxLength) =>
+        text.Length <= maxLength ? text : text[..maxLength];
 
     private void OpenConfig()
     {
@@ -487,6 +529,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void RefreshStatus()
     {
+        if (_downloading)
+        {
+            return; // The download owns the icon and tooltip until it finishes.
+        }
+
         bool ready = _watcher.IsRunning && _transcriber is not null && _hook.IsInstalled;
 
         string state = !_hook.IsInstalled ? "keyboard hook not installed"
@@ -495,7 +542,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             : $"ready — hold {_config.TalkKey} to talk";
 
         _statusItem.Text = state;
-        _tray.Text = $"Gaggle — {state}";
+        _tray.Text = Truncate($"Gaggle — {state}", TrayTextLimit);
         _tray.Icon = TrayIcons.Create(ready ? TrayIcons.Ready : TrayIcons.Idle);
     }
 

@@ -53,7 +53,7 @@ will fail when it tries to load the speech model.
 Gaggle lives in the notification area. On first launch:
 
 1. Right-click the tray icon → **Speech model** → pick one. It downloads to
-   `%APPDATA%\Gaggle`.
+   `%APPDATA%\Gaggle`, with progress shown in the overlay and the tray tooltip.
 2. Right-click → **Microphone** → pick your headset.
 3. Start Condor. The tray icon turns blue when it's ready.
 4. Hold **Caps Lock** (the default PTT key), speak, release.
@@ -100,25 +100,26 @@ minimise. Hence `WS_EX_NOACTIVATE`, with confirm/cancel read by the hook.
 "Thank you." or "Thanks for watching!". An RMS gate rejects quiet audio before
 transcription, and a blocklist catches the rest. See `Text/MessageSanitiser.cs`.
 
-## Not yet verified
+## Status
 
-Verified: the project builds clean, the app starts, and the speech path works —
-`ggml-base.en.bin` loads in ~330 ms and transcribes a 6.7 s clip in ~1.1 s, with the
-sanitiser correctly rejecting silence, hallucinations and annotations.
+**Verified working end to end against a live Condor install** — push-to-talk capture,
+local transcription, the review overlay, and scan-code injection into Condor's chat.
 
-Not yet confirmed against a live Condor install:
+Speech-path timings on the reference machine: `ggml-base.en.bin` loads in ~330 ms and
+transcribes a 6.7 s clip in ~1.1 s, with the sanitiser rejecting silence,
+hallucinations and annotations.
 
-- Whether scan-code injection reaches Condor's chat prompt at all — the core
-  assumption, and the first thing to test
-- Condor's actual chat message length limit (`MaxMessageLength` is a guess)
-- Whether `ChatOpenDelayMs` is enough for the chat prompt on all systems
-- Whether Condor 2 uses `Condor.exe` as the process name in all installs
-- Live microphone capture, as opposed to the synthesised audio used in testing
+Known unknowns, none of them blocking:
 
-If Condor is running elevated, Gaggle must be too — UIPI blocks input injection from a
-lower integrity level. Gaggle detects this: `SendInput` accepting zero events on the
-first keystroke is reported as "Windows blocked the keystrokes" rather than failing
-silently.
+- `MaxMessageLength` (120) is a conservative guess, not Condor's measured limit
+- Timings are tuned on one machine; a slower system may need a larger `ChatOpenDelayMs`
+- Tested with Condor 2 and an English model only
+
+**Elevation is not needed.** Condor and Gaggle both run as a normal user, which is how
+this was tested. Only if you deliberately run Condor as administrator must Gaggle be
+elevated too — UIPI blocks input injection from a lower integrity level. Gaggle detects
+that case: `SendInput` accepting zero events on the first keystroke is reported as
+"Windows blocked the keystrokes" rather than failing silently.
 
 ## Code style
 

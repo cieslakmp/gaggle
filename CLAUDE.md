@@ -79,6 +79,6 @@ This types into chat shared with other people in a live race. The rate limit
 (`MinSecondsBetweenMessages`) and the review step (`ReviewBeforeSending`) exist for
 that reason — do not remove either, or change their defaults, without being asked.
 
-Injection into Condor has not yet been verified against a live install. If something
-does not work end to end, suspect `ChatOpenDelayMs`, the process name, or elevation
-before suspecting the injection approach itself.
+The full flow is verified working against a live Condor install, so the approach is
+sound. If a change breaks it, suspect `ChatOpenDelayMs`, the process name, or
+elevation before suspecting the injection approach itself.

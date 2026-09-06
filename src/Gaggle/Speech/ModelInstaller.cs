@@ -8,6 +8,9 @@ public static class ModelInstaller
 {
     private const string BaseUrl = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
 
+    /// <summary>Minimum gap between progress reports.</summary>
+    private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(200);
+
     /// <summary>Models worth offering, smallest first. Sizes are approximate.</summary>
     public static readonly IReadOnlyList<ModelChoice> Available =
     [
@@ -21,11 +24,14 @@ public static class ModelInstaller
     /// <summary>
     /// Downloads the model to a temporary file and moves it into place once complete,
     /// so an interrupted download never leaves a half-written model that fails to load.
+    ///
+    /// Progress is reported at most every <see cref="ReportInterval"/>, because these
+    /// files are large enough that reporting every buffer would flood the UI thread.
     /// </summary>
     public static async Task DownloadAsync(
         string modelFileName,
         string destinationPath,
-        IProgress<double>? progress = null,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
@@ -48,21 +54,52 @@ public static class ModelInstaller
             byte[] buffer = new byte[81_920];
             long written = 0;
             int read;
+            // Seeded to now, so the opening report below is not immediately repeated
+            // by the first loop iteration.
+            long lastReportTicks = Environment.TickCount64;
+
+            progress?.Report(new DownloadProgress(0, total));
 
             while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
             {
                 await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 written += read;
 
-                if (total is > 0)
+                long now = Environment.TickCount64;
+                if (now - lastReportTicks >= ReportInterval.TotalMilliseconds)
                 {
-                    progress?.Report((double)written / total.Value);
+                    lastReportTicks = now;
+                    progress?.Report(new DownloadProgress(written, total));
                 }
             }
+
+            progress?.Report(new DownloadProgress(written, total ?? written));
         }
 
         File.Move(tempPath, destinationPath, overwrite: true);
     }
 
     public sealed record ModelChoice(string FileName, string Name, string Notes);
+
+    /// <summary>
+    /// Bytes received so far, and the total when the server declares one. A null
+    /// total means the response had no Content-Length, so only bytes can be shown.
+    /// </summary>
+    public readonly record struct DownloadProgress(long BytesReceived, long? TotalBytes)
+    {
+        public double? Fraction => TotalBytes is > 0 ? (double)BytesReceived / TotalBytes.Value : null;
+
+        /// <summary>Human-readable form, e.g. "42% — 62.1 of 141.1 MB".</summary>
+        public string Describe()
+        {
+            const double Megabyte = 1024 * 1024;
+
+            if (TotalBytes is > 0)
+            {
+                return $"{Fraction!.Value:P0} — {BytesReceived / Megabyte:F1} of {TotalBytes.Value / Megabyte:F1} MB";
+            }
+
+            return $"{BytesReceived / Megabyte:F1} MB";
+        }
+    }
 }
