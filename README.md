@@ -1,5 +1,7 @@
 # Gaggle
 
+[![CI](https://github.com/cieslakmp/gaggle/actions/workflows/ci.yml/badge.svg)](https://github.com/cieslakmp/gaggle/actions/workflows/ci.yml)
+
 Push-to-talk voice chat for [Condor Soaring Simulator](https://www.condorsoaring.com/).
 
 Hold a key, say your message, and Gaggle transcribes it locally and types it into
