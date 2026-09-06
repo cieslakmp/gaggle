@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.user
+*.suo
+
+# Rider / VS / VS Code
+.vs/
+.idea/
+.vscode/
+
+# Local runtime artefacts
+*.log
