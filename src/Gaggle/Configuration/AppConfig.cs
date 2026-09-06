@@ -16,7 +16,7 @@ public sealed class AppConfig
 {
     // ------------------------------------------------------------------ Condor
 
-    /// <summary>Process name without .exe. Condor 2 ships as Condor.exe.</summary>
+    /// <summary>Process name without .exe. Condor 3 runs as Condor.exe.</summary>
     public string ProcessName { get; set; } = "Condor";
 
     /// <summary>Key that opens the in-game chat prompt.</summary>

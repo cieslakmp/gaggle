@@ -110,7 +110,7 @@ Known unknowns, none of them blocking:
 
 - `MaxMessageLength` (120) is a conservative guess, not Condor's measured limit
 - Timings are tuned on one machine; a slower system may need a larger `ChatOpenDelayMs`
-- Tested with Condor 2 and an English model only
+- Tested with Condor 3 and an English model only
 
 **Elevation is not needed.** Condor and Gaggle both run as a normal user, which is how
 this was tested. Only if you deliberately run Condor as administrator must Gaggle be
