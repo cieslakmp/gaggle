@@ -135,6 +135,26 @@ public sealed class MicrophoneRecorder : IDisposable
         }
     }
 
+    /// <summary>
+    /// How long a 16-bit PCM WAV stream runs for. Whisper's encoder cost is set by the
+    /// analysis window rather than the audio, so knowing the real length is what lets
+    /// the window be trimmed to it.
+    /// </summary>
+    public static TimeSpan CalculateDuration(Stream wav)
+    {
+        long start = wav.Position;
+
+        try
+        {
+            using var reader = new WaveFileReader(wav) { Position = 0 };
+            return reader.TotalTime;
+        }
+        finally
+        {
+            wav.Position = start;
+        }
+    }
+
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
         lock (_sync)

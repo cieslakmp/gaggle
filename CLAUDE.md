@@ -63,9 +63,22 @@ the hook. A joystick button is read by Condor directly from the device, so there
 way to intercept it — the settings window warns about this rather than pretending
 otherwise. Do not add code that claims to suppress a bound button.
 
+**A non-English language needs a multilingual model.** Ask a `ggml-*.en.bin` build for
+Polish and whisper.cpp silently *discards* both the language and the translate request:
+no exception, and nothing logged at any level. It transcribes the audio phonetically as
+English instead — "Lecę w prawo" comes back as "Les W. Pero W." — and `segment.Language`
+still reports `en`. Verified against ggml-base.en.bin and ggml-small.en.bin: the output
+is byte-for-byte identical whether translation was asked for or not, which is how you
+can tell the parameters were ignored. `LoadModelAsync` refuses that pairing on purpose;
+do not "simplify" the check away, because nothing downstream will report the problem.
+`WithTranslate()` only ever goes *into* English, so the language list can never gain an
+output language.
+
 **Audio must be RMS-gated before transcription.** Fed near-silence, Whisper
 confidently invents stock phrases from its training data — "Thank you.", "Thanks for
-watching!". Without the gate in `TranscribeAsync` those get broadcast to a live race.
+watching!". The multilingual builds reach for subtitle credits instead ("Subtitles by
+the Amara.org community"), and translation carries those into English whatever was
+spoken. Without the gate in `TranscribeAsync` those get broadcast to a live race.
 `MessageSanitiser` is the second line of defence, not the first.
 
 ## Layout
@@ -75,7 +88,7 @@ watching!". Without the gate in `TranscribeAsync` those get broadcast to a live 
 | `Interop/` | Win32 P/Invoke, scan-code injection, the PTT hook, winmm joystick |
 | `Input/` | Push-to-talk binding, joystick polling, the keyboard/joystick merge |
 | `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires |
-| `Speech/` | Whisper.net wrapper and ggml model download |
+| `Speech/` | Whisper.net wrapper, language list, decoding options, ggml model download |
 | `Text/` | Transcript sanitising before anything reaches chat |
 | `Condor/` | Process/foreground detection and the chat macro |
 | `Ui/` | Tray icon, state machine, review overlay, settings window |
@@ -90,6 +103,19 @@ P/Invoke declarations in `Interop/NativeMethods.cs` mirror Win32 names and signa
 exactly, including underscores and Hungarian parameter names. That is deliberate —
 matching MSDN is worth more than matching .NET naming. The relevant analyser rules
 are disabled for this reason.
+
+Language and decoding settings are read fresh for every utterance rather than baked
+into the loaded model, so switching language costs nothing. Only `WhisperModelFile`
+forces a reload.
+
+`Language` and `WhisperModelFile` are two halves of one decision, and both tray menus
+maintain that: choosing English moves to an English build, choosing any-language moves
+to a multilingual one, and picking an English-only model sets the language to English.
+The menus therefore cannot produce the pairing `LoadModelAsync` refuses — that check now
+only catches a hand-edited config. The tray offers two language choices, not five,
+because with translation on `pl`, `de` and `es` all decode through the same path to
+near-identical English; the per-language codes survive in config for pinning one when
+detection picks wrong.
 
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the

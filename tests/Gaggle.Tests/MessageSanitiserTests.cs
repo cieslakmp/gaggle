@@ -147,4 +147,43 @@ public class MessageSanitiserTests
     {
         Assert.Equal(expected, MessageSanitiser.FoldToAscii(input));
     }
+
+    [Theory]
+    [InlineData("Subtitles by the Amara.org community")]
+    [InlineData("subtitles by the amara.org community.")]
+    [InlineData("Amara.org")]
+    [InlineData("Thank you for watching!")]
+    [InlineData("Please subscribe!")]
+    [InlineData("The end.")]
+    public void RejectsMultilingualModelHallucinations(string input)
+    {
+        // The multilingual builds saw far more subtitled video than the ".en" ones and
+        // reach for the credits when fed noise. These arrive in English whatever the
+        // pilot actually spoke, because the translate task ran on them too.
+        Assert.Null(MessageSanitiser.Clean(input, MaxLength));
+    }
+
+    [Fact]
+    public void FoldsAccentsWhenAskedSoNoLetterIsSilentlyDropped()
+    {
+        // InputSender.TypeChar drops any character the layout cannot produce, without
+        // an error, so an untranslated Polish word would otherwise arrive gutted.
+        string? result = MessageSanitiser.Clean("lecę w prawo", MaxLength, foldToAscii: true);
+
+        Assert.Equal("lece w prawo", result);
+    }
+
+    [Fact]
+    public void LeavesAccentsAloneByDefault()
+    {
+        Assert.Equal("lecę w prawo", MessageSanitiser.Clean("lecę w prawo", MaxLength));
+    }
+
+    [Fact]
+    public void FoldingDoesNotDisturbEnglish()
+    {
+        const string message = "Climbing at four knots over the second turnpoint.";
+
+        Assert.Equal(message, MessageSanitiser.Clean(message, MaxLength, foldToAscii: true));
+    }
 }

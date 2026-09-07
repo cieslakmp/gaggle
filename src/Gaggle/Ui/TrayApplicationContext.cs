@@ -43,6 +43,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private bool _busy;
     private bool _downloading;
 
+    /// <summary>Set when the chosen language needs a model the chosen model is not.</summary>
+    private bool _needsMultilingualModel;
+
     public TrayApplicationContext()
     {
         _config = AppConfig.Load();
@@ -153,6 +156,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         models.DropDownOpening += (_, _) => PopulateModels(models);
         menu.Items.Add(models);
 
+        var languages = new ToolStripMenuItem("Language");
+        languages.DropDownOpening += (_, _) => PopulateLanguages(languages);
+        menu.Items.Add(languages);
+
         menu.Items.Add(new ToolStripSeparator());
 
         menu.Items.Add("Push-to-talk…", null, (_, _) => ShowSettings());
@@ -171,6 +178,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (!ModelInstaller.IsInstalled(_config.ModelPath))
         {
+            // "No model at all" is the more useful thing to report, so clear any
+            // stale language mismatch before the status line is redrawn.
+            _needsMultilingualModel = false;
             RefreshStatus();
             _tray.ShowBalloonTip(
                 8000,
@@ -180,12 +190,33 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
+        if (!ModelInstaller.IsMultilingualFile(_config.WhisperModelFile)
+            && !SpokenLanguage.IsEnglish(_config.Language))
+        {
+            // An ".en" build contains English and nothing else, and has no translate
+            // task at all. Loading it here would work; asking it for Polish would then
+            // produce confident English nonsense with no error to explain it.
+            _needsMultilingualModel = true;
+            _transcriber?.Dispose();
+            _transcriber = null;
+
+            RefreshStatus();
+            _tray.ShowBalloonTip(
+                8000,
+                "Gaggle",
+                $"{SpokenLanguage.Describe(_config.Language)} needs a multilingual model. "
+                    + "Pick Small or Medium (multilingual) under Speech model.",
+                ToolTipIcon.Warning);
+            return;
+        }
+
+        _needsMultilingualModel = false;
+
         try
         {
             string modelPath = _config.ModelPath;
-            string language = _config.Language;
 
-            WhisperTranscriber loaded = await Task.Run(() => WhisperTranscriber.Load(modelPath, language));
+            WhisperTranscriber loaded = await Task.Run(() => WhisperTranscriber.Load(modelPath));
 
             _transcriber?.Dispose();
             _transcriber = loaded;
@@ -282,8 +313,24 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 return;
             }
 
-            string raw = await transcriber.TranscribeAsync(audio);
-            string? message = MessageSanitiser.Clean(raw, _config.MaxMessageLength);
+            var options = new TranscriptionOptions
+            {
+                Language = _config.Language,
+                Threads = _config.TranscriptionThreads,
+                AudioContextSize = _config.FastTranscription
+                    ? TranscriptionOptions.AudioContextFor(MicrophoneRecorder.CalculateDuration(audio))
+                    : 0,
+            };
+
+            string raw = await transcriber.TranscribeAsync(audio, options);
+
+            // Folded unconditionally: InputSender.TypeChar drops characters the layout
+            // cannot produce without an error, and that bites whenever a non-English
+            // word survives — translated or not. It is a no-op on English.
+            string? message = MessageSanitiser.Clean(
+                raw,
+                _config.MaxMessageLength,
+                foldToAscii: true);
 
             if (message is null)
             {
@@ -411,6 +458,173 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
+    /// <summary>
+    /// Language is read fresh for every utterance rather than baked into the loaded
+    /// model, so switching is instant — the only work is re-checking that the current
+    /// model can actually speak the language just chosen.
+    /// </summary>
+    private void PopulateLanguages(ToolStripMenuItem parent)
+    {
+        parent.DropDownItems.Clear();
+
+        foreach (SpokenLanguage language in SpokenLanguage.MenuChoices)
+        {
+            var item = new ToolStripMenuItem(language.Name)
+            {
+                // A config pinned to "pl" is still English-in-English-out as far as
+                // this menu is concerned, so it checks the same row as "auto".
+                Checked = SpokenLanguage.IsEnglish(language.Code)
+                    == SpokenLanguage.IsEnglish(_config.Language),
+            };
+
+            item.Click += async (_, _) => await SelectLanguageAsync(language);
+            parent.DropDownItems.Add(item);
+        }
+    }
+
+    private async Task SelectLanguageAsync(SpokenLanguage language)
+    {
+        if (string.Equals(_config.Language, language.Code, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // The language and the model are two halves of one decision, so choosing here
+        // settles both. English wants a dedicated English build — smaller and faster
+        // at English than the multilingual one — and anything else needs multilingual.
+        bool settled = SpokenLanguage.IsEnglish(language.Code)
+            ? await EnsureEnglishModelAsync()
+            : await EnsureMultilingualModelAsync(language);
+
+        if (!settled)
+        {
+            // Declined. Leaving the language alone keeps the app working, which is
+            // what cancelling ought to mean.
+            return;
+        }
+
+        _config.Language = language.Code;
+        _config.Save();
+
+        // No reload needed for the language itself; this re-runs the multilingual check
+        // and puts the transcriber back if a previous mismatch had cleared it.
+        await LoadModelAsync();
+    }
+
+    /// <summary>
+    /// Points <see cref="AppConfig.WhisperModelFile"/> at an English-only build,
+    /// downloading one if the user agrees. Returns false if they say no.
+    /// </summary>
+    private async Task<bool> EnsureEnglishModelAsync()
+    {
+        if (!ModelInstaller.IsMultilingualFile(_config.WhisperModelFile))
+        {
+            return true;
+        }
+
+        if (_downloading)
+        {
+            ShowStatus("A model download is already running.", isError: true);
+            return false;
+        }
+
+        // Anything already on disk beats a download. Available is ordered smallest
+        // first, so the last installed English build is the most capable one.
+        ModelInstaller.ModelChoice? installed = ModelInstaller.Available.LastOrDefault(
+            choice => !choice.IsMultilingual
+                && File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName)));
+
+        if (installed is not null)
+        {
+            _config.WhisperModelFile = installed.FileName;
+            ShowStatus($"Switched to {installed.Name}.");
+            return true;
+        }
+
+        ModelInstaller.ModelChoice offer = ModelInstaller.CounterpartEnglish(_config.WhisperModelFile);
+
+        DialogResult answer = MessageBox.Show(
+            "English uses a dedicated English speech model, which is smaller and "
+                + "faster at English than the multilingual one."
+                + Environment.NewLine + Environment.NewLine
+                + $"Download {offer.Name} ({offer.Notes}) now?",
+            "Gaggle",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (answer != DialogResult.OK)
+        {
+            return false;
+        }
+
+        if (!await DownloadModelAsync(offer, Path.Combine(AppConfig.DataDirectory, offer.FileName), alreadyConfirmed: true))
+        {
+            return false;
+        }
+
+        _config.WhisperModelFile = offer.FileName;
+        return true;
+    }
+
+    /// <summary>
+    /// Points <see cref="AppConfig.WhisperModelFile"/> at a model that can serve the
+    /// given language, downloading one if the user agrees. Returns false if they say
+    /// no, in which case nothing has changed.
+    /// </summary>
+    private async Task<bool> EnsureMultilingualModelAsync(SpokenLanguage language)
+    {
+        if (_downloading)
+        {
+            ShowStatus("A model download is already running.", isError: true);
+            return false;
+        }
+
+        // Nobody should download half a gigabyte twice, so an installed multilingual
+        // model wins over any download.
+        ModelInstaller.ModelChoice? installed = ModelInstaller.Available.FirstOrDefault(
+            choice => choice.IsMultilingual
+                && File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName)));
+
+        if (installed is not null)
+        {
+            _config.WhisperModelFile = installed.FileName;
+            ShowStatus($"Switched to {installed.Name} for {language.Name}.");
+            return true;
+        }
+
+        ModelInstaller.ModelChoice? offer = ModelInstaller.Available.FirstOrDefault(
+            choice => choice.IsMultilingual);
+
+        if (offer is null)
+        {
+            return false;
+        }
+
+        DialogResult answer = MessageBox.Show(
+            $"{language.Name} needs a multilingual speech model. The English-only models "
+                + "cannot transcribe it — Whisper ignores the request and writes down what "
+                + "it heard as English instead." + Environment.NewLine + Environment.NewLine
+                + $"Download {offer.Name} ({offer.Notes}) now?",
+            "Gaggle",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (answer != DialogResult.OK)
+        {
+            return false;
+        }
+
+        string destination = Path.Combine(AppConfig.DataDirectory, offer.FileName);
+
+        if (!await DownloadModelAsync(offer, destination, alreadyConfirmed: true))
+        {
+            return false;
+        }
+
+        _config.WhisperModelFile = offer.FileName;
+        return true;
+    }
+
     private async Task SelectModelAsync(ModelInstaller.ModelChoice choice, bool installed)
     {
         if (_downloading)
@@ -427,6 +641,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         _config.WhisperModelFile = choice.FileName;
+
+        // The two menus are halves of one decision, so picking an English-only build
+        // settles the language rather than leaving behind a pairing that refuses to
+        // load. Between them the menus can no longer produce that state at all; the
+        // check in LoadModelAsync now only catches a hand-edited config.
+        if (!choice.IsMultilingual && !SpokenLanguage.IsEnglish(_config.Language))
+        {
+            _config.Language = SpokenLanguage.EnglishCode;
+            ShowStatus($"{choice.Name} is English only — language set to English.");
+        }
+
         _config.Save();
 
         await LoadModelAsync();
@@ -436,17 +661,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// Downloads a model, reporting progress in the overlay and the tray tooltip.
     /// These files run to hundreds of megabytes, so silence here reads as a hang.
     /// </summary>
-    private async Task<bool> DownloadModelAsync(ModelInstaller.ModelChoice choice, string destination)
+    private async Task<bool> DownloadModelAsync(
+        ModelInstaller.ModelChoice choice,
+        string destination,
+        bool alreadyConfirmed = false)
     {
-        DialogResult answer = MessageBox.Show(
-            $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
-            "Gaggle",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Question);
-
-        if (answer != DialogResult.OK)
+        if (!alreadyConfirmed)
         {
-            return false;
+            DialogResult answer = MessageBox.Show(
+                $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
+                "Gaggle",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Question);
+
+            if (answer != DialogResult.OK)
+            {
+                return false;
+            }
         }
 
         // Constructed on the UI thread, so its callbacks arrive there too.
@@ -535,6 +766,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.SilenceThresholdRms = reloaded.SilenceThresholdRms;
         _config.WhisperModelFile = reloaded.WhisperModelFile;
         _config.Language = reloaded.Language;
+        _config.TranscriptionThreads = reloaded.TranscriptionThreads;
+        _config.FastTranscription = reloaded.FastTranscription;
         _config.MaxMessageLength = reloaded.MaxMessageLength;
 
         _config.PushToTalk = reloaded.PushToTalk;
@@ -569,6 +802,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         bool ready = _watcher.IsRunning && _transcriber is not null && _hook.IsInstalled;
 
         string state = !_hook.IsInstalled ? "keyboard hook not installed"
+            : _needsMultilingualModel ? $"{SpokenLanguage.Describe(_config.Language)} needs a multilingual model"
             : _transcriber is null ? "no speech model"
             : !_watcher.IsRunning ? $"waiting for {_config.ProcessName}"
             : $"ready — hold {_controller.Binding.Describe()}";

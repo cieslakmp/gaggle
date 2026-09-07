@@ -31,6 +31,20 @@ public static partial class MessageSanitiser
         "[blank_audio]",
         "(upbeat music)",
         "[music]",
+
+        // The multilingual models were trained on far more subtitled video than the
+        // ".en" ones, and fed noise they reach for the credits. These survive
+        // translation, so they arrive in English whatever was spoken.
+        "thank you for watching!",
+        "thank you for watching.",
+        "thanks for watching",
+        "subtitles by the amara.org community",
+        "subtitles by the amara.org community.",
+        "amara.org",
+        "subtitles by steamteamextra",
+        "please subscribe!",
+        "the end.",
+        "the end",
     };
 
     private static readonly Dictionary<char, string> Replacements = new()
@@ -55,7 +69,15 @@ public static partial class MessageSanitiser
     /// Cleans a transcript. Returns null when nothing worth sending survives —
     /// empty audio, an annotation-only result, or a known hallucination.
     /// </summary>
-    public static string? Clean(string? raw, int maxLength)
+    /// <param name="foldToAscii">
+    /// Strips accents before returning. Set for non-English speech: the output is
+    /// meant to be English, but Whisper sometimes leaves a short interjection
+    /// untranslated, and <see cref="Interop.InputSender.TypeChar"/> silently drops any
+    /// character the keyboard layout cannot produce — so "łopata" would reach chat as
+    /// "opata" with no error anywhere. Folding first loses the accent instead of the
+    /// letter. Lossless for text that is already English.
+    /// </param>
+    public static string? Clean(string? raw, int maxLength, bool foldToAscii = false)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
@@ -102,6 +124,11 @@ public static partial class MessageSanitiser
         if (text.All(ch => char.IsPunctuation(ch) || char.IsSymbol(ch) || char.IsWhiteSpace(ch)))
         {
             return null;
+        }
+
+        if (foldToAscii)
+        {
+            text = FoldToAscii(text);
         }
 
         return Truncate(text, maxLength);
