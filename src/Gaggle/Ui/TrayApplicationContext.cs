@@ -489,12 +489,82 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
+        // Picking a language the current model cannot speak is a dead end, so offer the
+        // way out here rather than setting the language and reporting a problem.
+        if (!SpokenLanguage.IsEnglish(language.Code)
+            && !ModelInstaller.IsMultilingualFile(_config.WhisperModelFile)
+            && !await EnsureMultilingualModelAsync(language))
+        {
+            // Declined. Leaving the language alone keeps the app working, which is
+            // what cancelling ought to mean.
+            return;
+        }
+
         _config.Language = language.Code;
         _config.Save();
 
-        // No reload needed for the model itself; this re-runs the multilingual check
+        // No reload needed for the language itself; this re-runs the multilingual check
         // and puts the transcriber back if a previous mismatch had cleared it.
         await LoadModelAsync();
+    }
+
+    /// <summary>
+    /// Points <see cref="AppConfig.WhisperModelFile"/> at a model that can serve the
+    /// given language, downloading one if the user agrees. Returns false if they say
+    /// no, in which case nothing has changed.
+    /// </summary>
+    private async Task<bool> EnsureMultilingualModelAsync(SpokenLanguage language)
+    {
+        if (_downloading)
+        {
+            ShowStatus("A model download is already running.", isError: true);
+            return false;
+        }
+
+        // Nobody should download half a gigabyte twice, so an installed multilingual
+        // model wins over any download.
+        ModelInstaller.ModelChoice? installed = ModelInstaller.Available.FirstOrDefault(
+            choice => choice.IsMultilingual
+                && File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName)));
+
+        if (installed is not null)
+        {
+            _config.WhisperModelFile = installed.FileName;
+            ShowStatus($"Switched to {installed.Name} for {language.Name}.");
+            return true;
+        }
+
+        ModelInstaller.ModelChoice? offer = ModelInstaller.Available.FirstOrDefault(
+            choice => choice.IsMultilingual);
+
+        if (offer is null)
+        {
+            return false;
+        }
+
+        DialogResult answer = MessageBox.Show(
+            $"{language.Name} needs a multilingual speech model. The English-only models "
+                + "cannot transcribe it — Whisper ignores the request and writes down what "
+                + "it heard as English instead." + Environment.NewLine + Environment.NewLine
+                + $"Download {offer.Name} ({offer.Notes}) now?",
+            "Gaggle",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (answer != DialogResult.OK)
+        {
+            return false;
+        }
+
+        string destination = Path.Combine(AppConfig.DataDirectory, offer.FileName);
+
+        if (!await DownloadModelAsync(offer, destination, alreadyConfirmed: true))
+        {
+            return false;
+        }
+
+        _config.WhisperModelFile = offer.FileName;
+        return true;
     }
 
     private async Task SelectModelAsync(ModelInstaller.ModelChoice choice, bool installed)
@@ -522,17 +592,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// Downloads a model, reporting progress in the overlay and the tray tooltip.
     /// These files run to hundreds of megabytes, so silence here reads as a hang.
     /// </summary>
-    private async Task<bool> DownloadModelAsync(ModelInstaller.ModelChoice choice, string destination)
+    private async Task<bool> DownloadModelAsync(
+        ModelInstaller.ModelChoice choice,
+        string destination,
+        bool alreadyConfirmed = false)
     {
-        DialogResult answer = MessageBox.Show(
-            $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
-            "Gaggle",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Question);
-
-        if (answer != DialogResult.OK)
+        if (!alreadyConfirmed)
         {
-            return false;
+            DialogResult answer = MessageBox.Show(
+                $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
+                "Gaggle",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Question);
+
+            if (answer != DialogResult.OK)
+            {
+                return false;
+            }
         }
 
         // Constructed on the UI thread, so its callbacks arrive there too.
