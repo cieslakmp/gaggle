@@ -128,6 +128,21 @@ public sealed class AppConfig
 
     // -------------------------------------------------------------------- Text
 
+    /// <summary>
+    /// Which language the getting-started guide is written in: "en", "pl", "de" or "es".
+    ///
+    /// Deliberately not <see cref="Language"/>. That one says what you speak to Whisper
+    /// and defaults to English even for pilots who do not; this one says what you read.
+    /// Two decisions sharing one field is how they end up wrong for somebody.
+    /// </summary>
+    public string UiLanguage { get; set; } = "en";
+
+    /// <summary>
+    /// Cleared once the guide has been shown, so it appears on the first run and never
+    /// again uninvited. "Getting started" in the tray menu reopens it.
+    /// </summary>
+    public bool OnboardingSeen { get; set; }
+
     /// <summary>Longest message typed into chat. Verify against Condor and adjust.</summary>
     public int MaxMessageLength { get; set; } = 120;
 

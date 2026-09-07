@@ -90,6 +90,11 @@ hold PTT key  ──►  record mic  ──►  Whisper (local)  ──►  revi
 
 Gaggle lives in the notification area — there is no main window.
 
+The first time it starts, a short **Getting started** guide opens with these steps in
+it. It is written in English, Polish, German or Spanish — pick one from the box in its
+top-right corner and it is remembered. **Getting started…** in the tray menu reopens it
+whenever you want. Only the guide is translated; the menus and messages are English.
+
 1. Right-click the tray icon → **Speech model** → pick one. It downloads to
    `%APPDATA%\Gaggle`, with progress shown in the overlay and the tray tooltip.
 2. Right-click → **Microphone** → pick your headset.
@@ -166,6 +171,8 @@ mode too.
 | `TranscriptionThreads` | `0` | `0` uses every hardware thread. Lower it if Condor stutters |
 | `FastTranscription` | `true` | Trims Whisper's 30-second window to what you actually said |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
+| `UiLanguage` | `en` | Language of the getting-started guide: `en`, `pl`, `de` or `es` |
+| `OnboardingSeen` | `false` | Set once the guide has been shown, so it opens only on the first run |
 | `CheckForUpdates` | `true` | Daily check against the GitHub releases API. See [Updating](#updating) |
 | `SkippedVersion` | unset | A release you chose to skip. Cleared by picking a newer one |
 
@@ -326,10 +333,10 @@ Both must ship together.
 dotnet test -c Release
 ```
 
-199 tests over the parts that can be checked without Condor, a microphone or a
+216 tests over the parts that can be checked without Condor, a microphone or a
 joystick: the transcript sanitiser, push-to-talk bindings and their config migration,
-config load and save, the cue tone buffers, download progress formatting, the RMS
-silence gate, and the update checker — version comparison, release parsing, the daily throttle and the
+config load and save, the cue tone buffers, the four onboarding translations, download
+progress formatting, the RMS silence gate, and the update checker — version comparison, release parsing, the daily throttle and the
 checksum reader.
 
 Input injection, the keyboard hook, joystick polling and the update swap itself are not

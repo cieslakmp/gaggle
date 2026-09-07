@@ -155,6 +155,19 @@ detection picks wrong.
 `ReloadConfig` in `Ui/TrayApplicationContext.cs` copies config fields across one by one.
 A new `AppConfig` property that is not added there is silently dropped by "Reload config".
 
+`UiLanguage` is the language the getting-started guide is written in, and is deliberately
+not `Language`, which is what the pilot speaks to Whisper. They look like the same
+decision and are not: `Language` defaults to English for everyone, including the Polish
+pilots `UiLanguage` exists for. Onboarding is the only translated surface — the menus,
+the settings window and every status message are English — so `Ui/OnboardingText.cs`
+quotes the English menu labels verbatim rather than translating names the reader is
+looking at.
+
+Each language is one instance of a record with named members rather than a dictionary of
+keys, so adding a line to the guide fails the build until all four languages have one. A
+missing key would otherwise render as a blank label in a language the author does not
+read.
+
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the
 same underlying value.

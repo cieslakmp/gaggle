@@ -163,6 +163,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         RefreshStatus();
         _ = LoadModelAsync();
+
+        // Deferred rather than shown from here: this runs before Application.Run, and a
+        // modal dialog opened now would hold the message loop shut with no tray icon
+        // behind it to say what the window belongs to.
+        if (!_config.OnboardingSeen)
+        {
+            BeginInvokeOnUi(ShowOnboarding);
+        }
     }
 
     // ------------------------------------------------------------------ Wiring
@@ -240,6 +248,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_updateItem);
         menu.Items.Add("Report a bug…", null, (_, _) => ReportIssue(IssueLink.BugTemplate));
         menu.Items.Add("Suggest an idea…", null, (_, _) => ReportIssue(IssueLink.SuggestionTemplate));
+        menu.Items.Add("Getting started…", null, (_, _) => ShowOnboarding());
         menu.Items.Add($"About {AppInfo.Name}…", null, (_, _) => ShowAbout());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
@@ -847,6 +856,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
             : $"index {_config.MicrophoneDeviceIndex} — no such device";
     }
 
+    /// <summary>
+    /// Opens the guide, remembering the language it was left in. Marked seen on the way
+    /// out rather than the way in, so a crash while it is open does not cost a first-run
+    /// user the one thing that explains the app.
+    /// </summary>
+    private void ShowOnboarding()
+    {
+        using var form = new OnboardingForm(_config.UiLanguage);
+        form.ShowDialog();
+
+        _config.UiLanguage = form.LanguageCode;
+        _config.OnboardingSeen = true;
+        _config.Save();
+    }
+
     private static void ShowAbout()
     {
         using var about = new AboutForm();
@@ -964,6 +988,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.TranscriptionThreads = reloaded.TranscriptionThreads;
         _config.FastTranscription = reloaded.FastTranscription;
         _config.MaxMessageLength = reloaded.MaxMessageLength;
+        _config.UiLanguage = reloaded.UiLanguage;
+        _config.OnboardingSeen = reloaded.OnboardingSeen;
         _config.CheckForUpdates = reloaded.CheckForUpdates;
         _config.LastUpdateCheckUtc = reloaded.LastUpdateCheckUtc;
         _config.SkippedVersion = reloaded.SkippedVersion;

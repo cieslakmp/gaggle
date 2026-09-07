@@ -32,6 +32,11 @@ public class AppConfigTests : IDisposable
         Assert.True(config.ReviewBeforeSending);
         Assert.False(config.AudibleFeedback);
         Assert.Equal(10, config.HandsFreeMaxRecordingSeconds);
+
+        // The guide is written in English until someone chooses otherwise, and it has
+        // not been shown yet.
+        Assert.Equal("en", config.UiLanguage);
+        Assert.False(config.OnboardingSeen);
     }
 
     [Fact]
@@ -114,6 +119,8 @@ public class AppConfigTests : IDisposable
         original.ReviewBeforeSending = false;
         original.AudibleFeedback = true;
         original.HandsFreeMaxRecordingSeconds = 7;
+        original.UiLanguage = "pl";
+        original.OnboardingSeen = true;
         original.PushToTalk = PttBinding.FromButton(2, 9);
         original.SaveTo(_path);
 
@@ -125,6 +132,8 @@ public class AppConfigTests : IDisposable
         Assert.False(reloaded.ReviewBeforeSending);
         Assert.True(reloaded.AudibleFeedback);
         Assert.Equal(7, reloaded.HandsFreeMaxRecordingSeconds);
+        Assert.Equal("pl", reloaded.UiLanguage);
+        Assert.True(reloaded.OnboardingSeen);
         Assert.Equal(PttSource.Joystick, reloaded.PushToTalk!.Source);
         Assert.Equal(2, reloaded.PushToTalk.JoystickId);
         Assert.Equal(9, reloaded.PushToTalk.Button);
