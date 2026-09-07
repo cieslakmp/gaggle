@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     tags-ignore: ['**']
+    # Nothing requires a status check on a push to main, so a documentation-only
+    # merge can skip the run outright.
+    paths-ignore: ['**.md', 'LICENSE', '.gitignore']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -22,28 +25,69 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v7
+        with:
+          # Full history, so a pull request can be diffed against its base to see
+          # whether anything buildable actually changed.
+          fetch-depth: 0
+
+      # `build` is a required status check on main. A workflow skipped by
+      # paths-ignore reports as *pending* rather than passing, which would leave a
+      # documentation-only pull request waiting forever for a status that never
+      # arrives. So the job always runs and always reports; it just does no work
+      # when there is nothing to build.
+      - name: Look for changes that need building
+        id: filter
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -ne "pull_request") {
+            "code=true" >> $env:GITHUB_OUTPUT
+            Write-Output "Not a pull request; building."
+            exit 0
+          }
+
+          $base = "${{ github.event.pull_request.base.sha }}"
+          $files = @(git diff --name-only $base HEAD)
+          $code = @($files | Where-Object {
+            $_ -notmatch '\.md$' -and $_ -notin @('LICENSE', '.gitignore')
+          })
+
+          if ($code.Count -eq 0) {
+            "code=false" >> $env:GITHUB_OUTPUT
+            Write-Output "Documentation only; skipping the build. Changed:"
+            $files | ForEach-Object { Write-Output "  $_" }
+          } else {
+            "code=true" >> $env:GITHUB_OUTPUT
+            Write-Output "Code changed; building. Changed:"
+            $code | ForEach-Object { Write-Output "  $_" }
+          }
 
       - name: Set up .NET
+        if: steps.filter.outputs.code == 'true'
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Restore
+        if: steps.filter.outputs.code == 'true'
         run: dotnet restore
 
       # The projects build with TreatWarningsAsErrors, so a new warning fails here.
       - name: Build
+        if: steps.filter.outputs.code == 'true'
         run: dotnet build -c Release --no-restore
 
       - name: Test
+        if: steps.filter.outputs.code == 'true'
         run: dotnet test -c Release --no-build
 
       # Proves the shipping artifact still builds, and that Whisper's native
       # libraries land beside the executable where Whisper.net looks for them.
       - name: Publish
+        if: steps.filter.outputs.code == 'true'
         run: dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
 
       - name: Check publish output
+        if: steps.filter.outputs.code == 'true'
         shell: pwsh
         run: |
           if (-not (Test-Path publish/Gaggle.exe)) { throw "Gaggle.exe missing from publish output" }
