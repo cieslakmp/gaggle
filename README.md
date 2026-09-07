@@ -114,6 +114,33 @@ Joysticks are read through the legacy winmm API, which sees **32 buttons across 
 devices**. That covers ordinary HOTAS and button boxes; a device exposing more than 32
 buttons would need DirectInput instead.
 
+## Hands-free (VR)
+
+In a headset the review overlay is a desktop window you cannot see, and the key that
+answers it is a keyboard you cannot look at. For VR the review step does not add safety,
+it removes the feature.
+
+Right-click the tray icon → **Send without review (hands-free)**, or tick it in the
+push-to-talk settings window. Hold the button, speak, release: the transcript goes
+straight into chat. It asks once before turning on, and never asks again.
+
+What changes when it is on:
+
+- **Nothing reads the message before Condor does.** The silence gate and the
+  hallucination filter are all that stand between Whisper and a live race chat. They
+  catch the common cases and are not a substitute for you.
+- **Recordings are cut shorter** — `HandsFreeMaxRecordingSeconds`, 10 by default rather
+  than 15. Reaching the limit still sends what was captured, so the limit is what bounds
+  how much unattended speech one held button can put on the air. It bounds it once: a
+  stuck button gives one recording, not one every ten seconds.
+- The rate limit still applies, unchanged.
+
+Turn on **Play audible cues** with it. Every other signal Gaggle has — the overlay, the
+tray icon, balloon tips — is a desktop visual, so in a headset the tones are the only
+feedback there is: a short tick when recording starts, a higher tone when a message
+reaches chat, and a low one when it does not, whatever the reason. They work in review
+mode too.
+
 ## Configuration
 
 `%APPDATA%\Gaggle\config.json`, created on first run. Edit it from the tray menu
@@ -126,7 +153,9 @@ buttons would need DirectInput instead.
 | `SendChatKey` | `Return` | Key that submits the message |
 | `PushToTalk` | Caps Lock | Key or joystick button held to record. Set it from the tray, not by hand |
 | `ConfirmKey` / `CancelKey` | `Return` / `Escape` | Only active while a review is open |
-| `ReviewBeforeSending` | `true` | Set `false` for hands-free instant send |
+| `ReviewBeforeSending` | `true` | `false` is hands-free — see [Hands-free](#hands-free-vr) |
+| `AudibleFeedback` | `false` | Play a tone when recording starts, sends, or is dropped |
+| `HandsFreeMaxRecordingSeconds` | `10` | Recording limit while hands-free, shorter than the one above |
 | `KeyDelayMs` | `30` | Gap between injected keystrokes |
 | `ChatOpenDelayMs` | `200` | Wait for the chat prompt to appear |
 | `MinSecondsBetweenMessages` | `3` | Rate limit |
@@ -190,6 +219,11 @@ If it is still too slow, use Small rather than Medium.
 This types into a live race chat shared with other people. The rate limit is on by
 default, and the review step exists because transcription is never perfect. Please
 leave both on until you trust it.
+
+[Hands-free](#hands-free-vr) turns the review step off, and is there because in VR
+there is no way to answer it. On a monitor you can see the overlay, so the honest
+answer is that you do not need it — and it is the other pilots in the chat who pay for
+a mishearing you never got to read.
 
 ## Testing it
 
@@ -292,10 +326,10 @@ Both must ship together.
 dotnet test -c Release
 ```
 
-179 tests over the parts that can be checked without Condor, a microphone or a
+199 tests over the parts that can be checked without Condor, a microphone or a
 joystick: the transcript sanitiser, push-to-talk bindings and their config migration,
-config load and save, download progress formatting, the RMS silence gate, and the
-update checker — version comparison, release parsing, the daily throttle and the
+config load and save, the cue tone buffers, download progress formatting, the RMS
+silence gate, and the update checker — version comparison, release parsing, the daily throttle and the
 checksum reader.
 
 Input injection, the keyboard hook, joystick polling and the update swap itself are not

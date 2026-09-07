@@ -71,9 +71,10 @@ Read the file before changing anything in `Interop/`, `Speech/` or `Update/`.
 
 Some things are deliberately absent, and a PR adding them will be declined:
 
-- Removing or loosening the rate limit (`MinSecondsBetweenMessages`) or the review step
-  (`ReviewBeforeSending`), or changing their defaults. Both exist because of the shared
-  chat.
+- Removing the rate limit (`MinSecondsBetweenMessages`) or the review step
+  (`ReviewBeforeSending`), or changing either default. Both exist because of the shared
+  chat. Review can be turned off per user — that is hands-free, and it is for VR, where
+  the overlay cannot be seen. Making it the default for everyone is a different thing.
 - Code that claims to suppress a bound joystick button. Condor reads the device directly;
   it cannot be done, and pretending otherwise is worse than the warning in the settings
   window.

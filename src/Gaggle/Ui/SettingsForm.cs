@@ -19,11 +19,14 @@ internal sealed class SettingsForm : Form
     private readonly Label _hint;
     private readonly Label _warning;
     private readonly ListBox _devices;
+    private readonly CheckBox _handsFreeBox;
+    private readonly Label _handsFreeNote;
+    private readonly CheckBox _cuesBox;
     private readonly Button _okButton;
 
     private PttBinding _binding;
 
-    public SettingsForm(PttController controller, PttBinding current)
+    public SettingsForm(PttController controller, PttBinding current, bool handsFree, bool audibleCues)
     {
         _controller = controller;
         _binding = current;
@@ -33,7 +36,7 @@ internal sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(420, 330);
+        ClientSize = new Size(420, 486);
         Padding = new Padding(16);
         Font = new Font("Segoe UI", 9f);
 
@@ -93,11 +96,43 @@ internal sealed class SettingsForm : Form
             ForeColor = Color.FromArgb(160, 90, 0),
         };
 
+        var sendingTitle = new Label
+        {
+            Text = "Sending",
+            Font = new Font(Font, FontStyle.Bold),
+            Location = new Point(16, 288),
+            AutoSize = true,
+        };
+
+        _handsFreeBox = new CheckBox
+        {
+            Text = "Hands-free — send without reviewing",
+            Location = new Point(16, 314),
+            AutoSize = true,
+            Checked = handsFree,
+        };
+        _handsFreeBox.CheckedChanged += (_, _) => RefreshHandsFree();
+
+        _handsFreeNote = new Label
+        {
+            Location = new Point(16, 340),
+            Width = 380,
+            Height = 64,
+        };
+
+        _cuesBox = new CheckBox
+        {
+            Text = "Play a tone when recording starts, sends, or is dropped",
+            Location = new Point(16, 410),
+            AutoSize = true,
+            Checked = audibleCues,
+        };
+
         _okButton = new Button
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
-            Location = new Point(226, 284),
+            Location = new Point(226, 440),
             Width = 84,
         };
 
@@ -105,11 +140,14 @@ internal sealed class SettingsForm : Form
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,
-            Location = new Point(318, 284),
+            Location = new Point(318, 440),
             Width = 84,
         };
 
-        Controls.AddRange([title, _bindingBox, _changeButton, _hint, devicesTitle, _devices, _warning, _okButton, cancelButton]);
+        Controls.AddRange([
+            title, _bindingBox, _changeButton, _hint, devicesTitle, _devices, _warning,
+            sendingTitle, _handsFreeBox, _handsFreeNote, _cuesBox, _okButton, cancelButton,
+        ]);
         AcceptButton = _okButton;
         CancelButton = cancelButton;
 
@@ -117,10 +155,36 @@ internal sealed class SettingsForm : Form
 
         RefreshDevices();
         RefreshBinding();
+        RefreshHandsFree();
     }
 
     /// <summary>The binding chosen, valid once the dialog returns OK.</summary>
     public PttBinding Binding => _binding;
+
+    /// <summary>Whether to skip the review step, valid once the dialog returns OK.</summary>
+    public bool HandsFree => _handsFreeBox.Checked;
+
+    /// <summary>Whether to play the cue tones, valid once the dialog returns OK.</summary>
+    public bool AudibleCues => _cuesBox.Checked;
+
+    /// <summary>
+    /// Says what the checkbox above it actually means, in the colour that matches how
+    /// much it matters - the same amber the joystick caveat uses when it applies.
+    /// </summary>
+    private void RefreshHandsFree()
+    {
+        _handsFreeNote.ForeColor = _handsFreeBox.Checked
+            ? Color.FromArgb(160, 90, 0)
+            : SystemColors.GrayText;
+
+        _handsFreeNote.Text = _handsFreeBox.Checked
+            ? "Whatever is transcribed goes straight into chat, mishearings included, "
+                + "with nothing to read or discard first. Recordings are also cut shorter "
+                + "than usual, because nobody is watching what the time limit sends."
+            : "Every message waits in the overlay first: Enter sends it, Escape discards "
+                + "it. In VR that overlay cannot be seen or answered — that is what "
+                + "hands-free is for.";
+    }
 
     private void ToggleCapture()
     {
