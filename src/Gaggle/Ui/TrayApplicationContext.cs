@@ -28,6 +28,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _statusItem;
     private readonly ToolStripMenuItem _updateItem;
+    private readonly ToolStripMenuItem _handsFreeItem;
+    private readonly ToolStripMenuItem _cuesItem;
     private readonly CondorWatcher _watcher;
     private readonly ChatSender _sender;
     private readonly MicrophoneRecorder _recorder = new();
@@ -85,6 +87,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
             await CheckForUpdatesAsync(silent: false);
         };
 
+        _handsFreeItem = new ToolStripMenuItem("Send without review (hands-free)");
+        _handsFreeItem.Click += (_, _) => ToggleHandsFree();
+
+        _cuesItem = new ToolStripMenuItem("Play audible cues");
+        _cuesItem.Click += (_, _) =>
+        {
+            _config.AudibleFeedback = !_config.AudibleFeedback;
+            _config.Save();
+
+            // Turning them on says so out loud; there is nothing else to look at.
+            Cue(CueTones.PlaySent);
+        };
+
         _menu = BuildMenu();
 
         _tray = new NotifyIcon
@@ -125,7 +140,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _watcher.StateChanged += (_, _) => RefreshStatus();
         _watcher.Start();
 
-        _recorder.Failed += ex => BeginInvokeOnUi(() => ShowStatus($"Microphone error: {ex.Message}", isError: true));
+        CueTones.Warm();
+
+        _recorder.Failed += ex => BeginInvokeOnUi(() => UtteranceFailed($"Microphone error: {ex.Message}"));
 
         _controller = new PttController(_hook, _joystick);
         ConfigureInput();
@@ -186,6 +203,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
 
+        // The submenus rebuild their check marks on DropDownOpening; these two are
+        // not rebuilt, so they read the config here for the same reason. Setting them
+        // once at construction would go stale the moment anything else changed the
+        // config - "Reload config", the settings window, a hand edit.
+        menu.Opening += (_, _) =>
+        {
+            _handsFreeItem.Checked = !_config.ReviewBeforeSending;
+            _cuesItem.Checked = _config.AudibleFeedback;
+        };
+
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
 
@@ -204,6 +231,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
 
         menu.Items.Add("Push-to-talk…", null, (_, _) => ShowSettings());
+        menu.Items.Add(_handsFreeItem);
+        menu.Items.Add(_cuesItem);
         menu.Items.Add("Open config file", null, (_, _) => OpenConfig());
         menu.Items.Add("Reload config", null, (_, _) => ReloadConfig());
 
@@ -285,13 +314,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (_transcriber is null)
         {
-            ShowStatus("No speech model loaded — see the tray menu.", isError: true);
+            UtteranceFailed("No speech model loaded — see the tray menu.");
             return;
         }
 
         if (!_watcher.IsRunning)
         {
-            ShowStatus($"{_config.ProcessName} is not running.", isError: true);
+            UtteranceFailed($"{_config.ProcessName} is not running.");
             return;
         }
 
@@ -303,12 +332,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            ShowStatus($"Microphone unavailable: {ex.Message}", isError: true);
+            UtteranceFailed($"Microphone unavailable: {ex.Message}");
             return;
         }
 
+        // Set per recording rather than once, because hands-free can be switched on
+        // between one utterance and the next.
+        _recordingLimit.Interval = Math.Max(1, _config.ReviewBeforeSending
+            ? _config.MaxRecordingSeconds
+            : _config.HandsFreeMaxRecordingSeconds) * 1000;
         _recordingLimit.Start();
+
         _tray.Icon = TrayIcons.Create(TrayIcons.Recording);
+        Cue(CueTones.PlayStarted);
         _overlay.ShowStatus("Listening…");
         _statusTimeout.Stop();
     }
@@ -327,7 +363,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (audio is null)
         {
-            ShowStatus("Nothing recorded.", isError: true);
+            UtteranceFailed("Nothing recorded.");
             RefreshStatus();
             return;
         }
@@ -347,14 +383,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (level < _config.SilenceThresholdRms)
             {
                 // Fed silence, Whisper invents plausible sentences. Never transcribe it.
-                ShowStatus("Too quiet — nothing sent.", isError: true);
+                UtteranceFailed("Too quiet — nothing sent.");
                 return;
             }
 
             WhisperTranscriber? transcriber = _transcriber;
             if (transcriber is null)
             {
-                ShowStatus("No speech model loaded.", isError: true);
+                UtteranceFailed("No speech model loaded.");
                 return;
             }
 
@@ -379,7 +415,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             if (message is null)
             {
-                ShowStatus("Did not catch that.", isError: true);
+                UtteranceFailed("Did not catch that.");
                 return;
             }
 
@@ -397,7 +433,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            ShowStatus($"Transcription failed: {ex.Message}", isError: true);
+            UtteranceFailed($"Transcription failed: {ex.Message}");
         }
         finally
         {
@@ -429,11 +465,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (result.Success)
         {
+            Cue(CueTones.PlaySent);
             _overlay.HideOverlay();
+        }
+        else if (result.Outcome == SendOutcome.UnsupportedCharacters)
+        {
+            // A failure on screen but not in Condor: ChatSender taps the send key and
+            // stamps the rate limit before it reports the characters this layout could
+            // not type. The message is in the chat, minus a few letters, so the tone has
+            // to say sent - a drop tone would send someone hunting for a message that is
+            // already there.
+            Cue(CueTones.PlaySent);
+            ShowStatus(result.Describe(), isError: true);
         }
         else
         {
-            ShowStatus(result.Describe(), isError: true);
+            UtteranceFailed(result.Describe());
         }
 
         RefreshStatus();
@@ -810,7 +857,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         // ShowDialog keeps pumping messages, so both the keyboard hook and the
         // joystick poll timer stay live and can capture a new binding.
-        using var form = new SettingsForm(_controller, _controller.Binding);
+        using var form = new SettingsForm(
+            _controller,
+            _controller.Binding,
+            handsFree: !_config.ReviewBeforeSending,
+            audibleCues: _config.AudibleFeedback);
 
         if (form.ShowDialog() != DialogResult.OK)
         {
@@ -824,6 +875,59 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _config.TalkKey = form.Binding.Key;
         }
+
+        // Nothing to re-wire: ReviewBeforeSending is read fresh per utterance and the
+        // tray ticks are recomputed when the menu next opens. Only a pending review has
+        // to go, for the reason ToggleHandsFree explains.
+        if (form.HandsFree == _config.ReviewBeforeSending)
+        {
+            _config.ReviewBeforeSending = !form.HandsFree;
+            DiscardPending();
+        }
+
+        _config.AudibleFeedback = form.AudibleCues;
+
+        _config.Save();
+        RefreshStatus();
+    }
+
+    /// <summary>
+    /// Flips hands-free, asking first when turning it on.
+    ///
+    /// The question matches the one asked before an English-only model is paired with a
+    /// non-English language: both are choices that look small in a menu and are not.
+    /// Turning it back off needs no ceremony.
+    /// </summary>
+    private void ToggleHandsFree()
+    {
+        if (_config.ReviewBeforeSending)
+        {
+            DialogResult answer = MessageBox.Show(
+                "Hands-free sends every transcript straight to chat, mishearings included, "
+                    + "with no chance to read it first."
+                    + Environment.NewLine + Environment.NewLine
+                    + "It exists for VR, where the review overlay cannot be seen or answered. "
+                    + "On a monitor you are giving up the only human check on what other "
+                    + "pilots receive."
+                    + Environment.NewLine + Environment.NewLine
+                    + "Turn it on?",
+                "Gaggle",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning);
+
+            if (answer != DialogResult.OK)
+            {
+                return;
+            }
+        }
+
+        _config.ReviewBeforeSending = !_config.ReviewBeforeSending;
+
+        // A transcript already waiting for Enter was composed under the old rules, and
+        // the hook is still swallowing Enter and Escape for it. Left alone it would fire
+        // into chat on the next Enter pressed in Condor, long after the overlay that
+        // explained it has been forgotten.
+        DiscardPending();
 
         _config.Save();
         RefreshStatus();
@@ -846,11 +950,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.ConfirmKey = reloaded.ConfirmKey;
         _config.CancelKey = reloaded.CancelKey;
         _config.ReviewBeforeSending = reloaded.ReviewBeforeSending;
+        _config.AudibleFeedback = reloaded.AudibleFeedback;
         _config.KeyDelayMs = reloaded.KeyDelayMs;
         _config.ChatOpenDelayMs = reloaded.ChatOpenDelayMs;
         _config.BeforeSendDelayMs = reloaded.BeforeSendDelayMs;
         _config.MinSecondsBetweenMessages = reloaded.MinSecondsBetweenMessages;
         _config.MaxRecordingSeconds = reloaded.MaxRecordingSeconds;
+        _config.HandsFreeMaxRecordingSeconds = reloaded.HandsFreeMaxRecordingSeconds;
         _config.MicrophoneDeviceIndex = reloaded.MicrophoneDeviceIndex;
         _config.SilenceThresholdRms = reloaded.SilenceThresholdRms;
         _config.WhisperModelFile = reloaded.WhisperModelFile;
@@ -869,7 +975,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _controller.Binding = _config.PushToTalk ?? PttBinding.FromKey(_config.TalkKey);
 
         _watcher.ProcessName = _config.ProcessName;
-        _recordingLimit.Interval = Math.Max(1, _config.MaxRecordingSeconds) * 1000;
 
         RefreshStatus();
         _ = LoadModelAsync();
@@ -1060,6 +1165,32 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
 
     // ------------------------------------------------------------------ Status
+
+    /// <summary>
+    /// An utterance produced nothing, for whatever reason. Says so on screen, and out
+    /// loud when cues are on - in a headset the tone is the only half that arrives.
+    ///
+    /// Utterances only. The download and update failures use <see cref="ShowStatus"/>
+    /// directly: a tone means "what you just said went nowhere", and firing it at a menu
+    /// click is how that stops meaning anything.
+    /// </summary>
+    private void UtteranceFailed(string text)
+    {
+        Cue(CueTones.PlayDropped);
+        ShowStatus(text, isError: true);
+    }
+
+    /// <summary>
+    /// Plays a cue if the user asked for them, and returns immediately either way. Read
+    /// fresh from the config so there is no second copy of the setting to drift.
+    /// </summary>
+    private void Cue(Action tone)
+    {
+        if (_config.AudibleFeedback)
+        {
+            tone();
+        }
+    }
 
     private void ShowStatus(string text, bool isError = false)
     {

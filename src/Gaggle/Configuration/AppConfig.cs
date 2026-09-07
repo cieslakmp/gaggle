@@ -42,8 +42,24 @@ public sealed class AppConfig
 
     public Keys CancelKey { get; set; } = Keys.Escape;
 
-    /// <summary>When false, a finished transcript is typed straight into chat.</summary>
+    /// <summary>
+    /// When false, a finished transcript is typed straight into chat with nothing to
+    /// confirm - "hands-free". It exists for VR, where the review overlay is a desktop
+    /// window the pilot can neither see nor answer. Off the default on purpose: with it
+    /// on, the silence gate and <see cref="Gaggle.Text.MessageSanitiser"/> are the only
+    /// things left between Whisper and a live race chat.
+    /// </summary>
     public bool ReviewBeforeSending { get; set; } = true;
+
+    /// <summary>
+    /// Plays a short tone when recording starts, when a message is sent, and when one
+    /// is dropped. Off by default so an upgrade does not start making noise unasked.
+    ///
+    /// Worth turning on with <see cref="ReviewBeforeSending"/> off: in a headset every
+    /// other signal this app has - the overlay, the tray icon, balloon tips - is a
+    /// desktop visual the pilot cannot see.
+    /// </summary>
+    public bool AudibleFeedback { get; set; }
 
     // ------------------------------------------------------------------ Timing
 
@@ -62,6 +78,17 @@ public sealed class AppConfig
 
     /// <summary>Recording is abandoned past this, to bound transcription time.</summary>
     public int MaxRecordingSeconds { get; set; } = 15;
+
+    /// <summary>
+    /// The same limit while hands-free, kept shorter deliberately. The watchdog does not
+    /// discard what it stops - it transcribes and sends it - and with
+    /// <see cref="ReviewBeforeSending"/> off nobody reads that first, so this bounds how
+    /// much unattended speech one held control can put into a live race.
+    ///
+    /// It bounds it once, not repeatedly: joystick polling reports button edges only, so
+    /// a stuck button produces a single recording rather than one per interval.
+    /// </summary>
+    public int HandsFreeMaxRecordingSeconds { get; set; } = 10;
 
     // ------------------------------------------------------------------- Audio
 

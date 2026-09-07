@@ -76,6 +76,15 @@ do not "simplify" the check away, because nothing downstream will report the pro
 `WithTranslate()` only ever goes *into* English, so the language list can never gain an
 output language.
 
+**A cue tone must never be played synchronously.** `Console.Beep` blocks the calling
+thread for the whole tone. Every cue fires from the UI thread, which is the thread the
+`WH_KEYBOARD_LL` hook is installed on, so a 200 ms beep spends most of the 300 ms
+`LowLevelHooksTimeout` budget and Windows uninstalls the hook with no error anywhere.
+`Audio/CueTones.cs` uses `SoundPlayer`, which hands off to its own thread, and warms the
+players off the UI thread at startup for the same reason. `SystemSounds` is wrong here
+for a quieter reason: it plays nothing at all under the "No Sounds" scheme, which is
+silence in the one mode where sound is the only feedback there is.
+
 **Audio must be RMS-gated before transcription.** Fed near-silence, Whisper
 confidently invents stock phrases from its training data — "Thank you.", "Thanks for
 watching!". The multilingual builds reach for subtitle credits instead ("Subtitles by
@@ -102,7 +111,7 @@ app and a race starting. The release assets are matched by suffix (`-win-x64.zip
 |---|---|
 | `Interop/` | Win32 P/Invoke, scan-code injection, the PTT hook, winmm joystick |
 | `Input/` | Push-to-talk binding, joystick polling, the keyboard/joystick merge |
-| `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires |
+| `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires — and the cue tones |
 | `Net/` | The one streaming download loop, shared by models and updates |
 | `Speech/` | Whisper.net wrapper, language list, decoding options, ggml model download |
 | `Text/` | Transcript sanitising before anything reaches chat |
@@ -153,6 +162,21 @@ a template or a field id and `IssueLinkTests` is the only thing that will notice
 This types into chat shared with other people in a live race. The rate limit
 (`MinSecondsBetweenMessages`) and the review step (`ReviewBeforeSending`) exist for
 that reason — do not remove either, or change their defaults, without being asked.
+
+Hands-free is `ReviewBeforeSending: false`, and it is opt-in for VR, where the overlay
+cannot be seen or answered. With it on the RMS gate and `MessageSanitiser` stop being the
+second line of defence and become the only one, so anything that weakens them weighs more
+than it looks. Three things follow, and none are obvious from the code:
+
+- The watchdog (`HandsFreeMaxRecordingSeconds`) *sends* what it stops, it does not discard
+  it. That is deliberate, and it is why the hands-free limit is shorter than
+  `MaxRecordingSeconds`.
+- `SendOutcome.UnsupportedCharacters` means the message **was** sent — `ChatSender` taps
+  the send key before it reports the characters it could not type — so it earns the sent
+  cue, not the dropped one.
+- Toggling hands-free must call `DiscardPending()`. A transcript already awaiting Enter
+  has the hook swallowing Enter and Escape, and would otherwise fire into chat on the next
+  Enter pressed in Condor.
 
 The full flow is verified working against a live Condor install, so the approach is
 sound. If a change breaks it, suspect `ChatOpenDelayMs`, the process name, or

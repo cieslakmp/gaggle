@@ -26,7 +26,28 @@ public class AppConfigTests : IDisposable
 
         Assert.True(File.Exists(_path));
         Assert.Equal("Condor", config.ProcessName);
+
+        // The three defaults that decide what reaches a live race chat without anyone
+        // having agreed to it. Changing any of them is a product decision, not a tidy-up.
         Assert.True(config.ReviewBeforeSending);
+        Assert.False(config.AudibleFeedback);
+        Assert.Equal(10, config.HandsFreeMaxRecordingSeconds);
+    }
+
+    [Fact]
+    public void AConfigWrittenBeforeHandsFreeKeepsTheSafeDefaults()
+    {
+        // Everything an existing install has on disk, and none of the new keys. The
+        // upgrade must not quietly turn review off or start making noise.
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(_path, """{ "ProcessName": "Condor", "MaxRecordingSeconds": 20 }""");
+
+        AppConfig config = AppConfig.LoadFrom(_path);
+
+        Assert.True(config.ReviewBeforeSending);
+        Assert.False(config.AudibleFeedback);
+        Assert.Equal(10, config.HandsFreeMaxRecordingSeconds);
+        Assert.Equal(20, config.MaxRecordingSeconds);
     }
 
     [Fact]
@@ -90,6 +111,9 @@ public class AppConfigTests : IDisposable
         original.ProcessName = "Condor3";
         original.ChatOpenDelayMs = 450;
         original.MaxMessageLength = 90;
+        original.ReviewBeforeSending = false;
+        original.AudibleFeedback = true;
+        original.HandsFreeMaxRecordingSeconds = 7;
         original.PushToTalk = PttBinding.FromButton(2, 9);
         original.SaveTo(_path);
 
@@ -98,6 +122,9 @@ public class AppConfigTests : IDisposable
         Assert.Equal("Condor3", reloaded.ProcessName);
         Assert.Equal(450, reloaded.ChatOpenDelayMs);
         Assert.Equal(90, reloaded.MaxMessageLength);
+        Assert.False(reloaded.ReviewBeforeSending);
+        Assert.True(reloaded.AudibleFeedback);
+        Assert.Equal(7, reloaded.HandsFreeMaxRecordingSeconds);
         Assert.Equal(PttSource.Joystick, reloaded.PushToTalk!.Source);
         Assert.Equal(2, reloaded.PushToTalk.JoystickId);
         Assert.Equal(9, reloaded.PushToTalk.Button);
