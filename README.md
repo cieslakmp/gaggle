@@ -27,8 +27,8 @@ administrator rights.
 Keep `Gaggle.exe` and the `runtimes` folder **together** — the executable alone cannot
 load the speech model.
 
-Needs Windows 10 or 11, 64-bit, and about 150 MB for the speech model it downloads on
-first run.
+Needs Windows 10 or 11, 64-bit, plus room for the speech model it downloads on first
+run: 141 MB for English, or 465 MB if you want it to understand other languages.
 
 ## How it works
 
@@ -150,6 +150,48 @@ This types into a live race chat shared with other people. The rate limit is on 
 default, and the review step exists because transcription is never perfect. Please
 leave both on until you trust it.
 
+## Testing it
+
+You do not need to be in a race, or even in Condor, to see what Gaggle would send.
+
+Gaggle refuses to record unless the process it watches is running, so point it at
+something else for a moment. Set `ProcessName` to `notepad` in the config file,
+**Reload config** from the tray, and start Notepad. Hold push-to-talk, speak, and the
+transcript appears in the review overlay exactly as it would in flight — press Escape
+to discard it. That alone exercises capture, the silence gate, transcription and
+translation.
+
+Keep Notepad focused and press Enter instead, and the full macro types into Notepad so
+you can read the message character for character. It arrives slightly mangled, because
+the key that opens Condor's chat is Backspace and Notepad treats that as an edit. That
+is the macro working, not a fault.
+
+Set `ProcessName` back to `Condor` when you are done.
+
+### What is worth reporting
+
+Some of the behaviour below is measured and some is guessed, and the guesses are where
+feedback helps most.
+
+- **Translation quality.** Whisper's translate task is confirmed to *run* — the spoken
+  language is honoured and English comes out — but it has never been checked against
+  real speech, only synthesised audio. If Polish, German or Spanish arrives as
+  nonsense, that is the most useful thing you can report. Say what you spoke and what
+  appeared.
+- **`FastTranscription`.** It makes transcription roughly 3× faster and can cost
+  accuracy. If words go missing, or a sentence arrives only half-translated, set it to
+  `false`, repeat the same phrase, and say whether that fixed it.
+- **Frame-rate hitches** while a message transcribes, especially on Medium. Lower
+  `TranscriptionThreads` and say whether it helped.
+- **`MaxMessageLength`.** The 120 default is a guess, not Condor's measured limit. If a
+  long message is cut short in game, the real number would settle it.
+- **Anything the review overlay shows that you did not say.** The sanitiser drops known
+  Whisper hallucinations, but the list only covers the ones seen so far.
+
+Report through [Issues](https://github.com/cieslakmp/gaggle/issues). Which release you
+are running, your model and language choice, and your `config.json` cover most of what
+is needed.
+
 ## Status
 
 **Verified working end to end against a live Condor install** — push-to-talk capture,
@@ -157,13 +199,19 @@ local transcription, the review overlay, and scan-code injection into Condor's c
 
 Speech-path timings on the reference machine: `ggml-base.en.bin` loads in ~330 ms and
 transcribes a 6.7 s clip in ~1.1 s, with the sanitiser rejecting silence,
-hallucinations and annotations.
+hallucinations and annotations. On `ggml-small.bin` (multilingual) a 7 s clip takes
+~1.3 s with `FastTranscription` on, against ~3.9 s with it off.
 
 Known unknowns, none of them blocking:
 
+- **Translation quality is unverified.** The mechanism is confirmed — the spoken
+  language is honoured and the output is English — but every check used synthesised
+  audio, so how well real Polish, German or Spanish survives is genuinely unknown
+- `FastTranscription` trades accuracy for speed and is on by default; one measured run
+  came back less completely translated than the same clip with it off
 - `MaxMessageLength` (120) is a conservative guess, not Condor's measured limit
 - Timings are tuned on one machine; a slower system may need a larger `ChatOpenDelayMs`
-- Tested with Condor 3 and an English model only
+- Tested with Condor 3
 
 **Elevation is not needed.** Condor and Gaggle both run as a normal user, which is how
 this was tested. Only if you deliberately run Condor as administrator must Gaggle be
