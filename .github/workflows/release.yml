@@ -71,13 +71,23 @@ jobs:
           if (-not (Test-Path publish/Gaggle.exe)) { throw "Gaggle.exe missing from publish output" }
           if (-not (Test-Path publish/runtimes/win-x64/whisper.dll)) { throw "whisper native libraries missing from publish output" }
 
+          # The in-app updater finds these assets by suffix: "-win-x64.zip" and
+          # "-win-x64.zip.sha256". Renaming either breaks every copy already installed,
+          # which will not show up in CI - see src/Gaggle/Update/GitHubReleases.cs.
           $name = "Gaggle-${{ steps.version.outputs.version }}-win-x64.zip"
 
           # Ship the executable and the native runtimes only; the pdb is noise for users.
           Compress-Archive -Path publish/Gaggle.exe, publish/runtimes -DestinationPath $name -CompressionLevel Optimal
 
+          # The updater verifies this before it extracts anything over a working install.
+          $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "$name.sha256" -Value "$hash  $name" -Encoding ascii
+
           "name=$name" >> $env:GITHUB_OUTPUT
+          "checksum=$name.sha256" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
           Write-Output ("{0} is {1:N1} MB" -f $name, ((Get-Item $name).Length / 1MB))
+          Write-Output "SHA256 $hash"
 
       - name: Write release notes from the tag message
         id: notes
@@ -98,6 +108,9 @@ jobs:
             "generate=true" >> $env:GITHUB_OUTPUT
             Write-Output "Lightweight tag; letting GitHub generate the notes"
           } else {
+            # So the checksum can be checked by hand as well as by the updater.
+            $text = $text + "`n`n---`n`nSHA256 of ``${{ steps.package.outputs.name }}``:`n`n    ${{ steps.package.outputs.sha256 }}"
+
             Set-Content -Path release-notes.md -Value $text -Encoding utf8
             "generate=false" >> $env:GITHUB_OUTPUT
             Write-Output "Using the annotated tag message"
@@ -114,7 +127,8 @@ jobs:
             "release", "create", "${{ steps.version.outputs.tag }}",
             "--draft",
             "--title", "Gaggle ${{ steps.version.outputs.version }}",
-            "${{ steps.package.outputs.name }}#Gaggle ${{ steps.version.outputs.version }} (Windows x64)"
+            "${{ steps.package.outputs.name }}#Gaggle ${{ steps.version.outputs.version }} (Windows x64)",
+            "${{ steps.package.outputs.checksum }}#SHA256 checksum"
           )
 
           if ("${{ steps.notes.outputs.generate }}" -eq "true") {
@@ -131,5 +145,7 @@ jobs:
           "### Draft release ${{ steps.version.outputs.tag }} created" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
           "Asset: ``${{ steps.package.outputs.name }}``" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "SHA256: ``${{ steps.package.outputs.sha256 }}``" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
           "Review the notes, then publish it from the Releases page." >> $env:GITHUB_STEP_SUMMARY

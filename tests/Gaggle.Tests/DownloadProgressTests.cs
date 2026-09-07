@@ -1,3 +1,4 @@
+using Gaggle.Net;
 using Gaggle.Speech;
 
 namespace Gaggle.Tests;
@@ -7,7 +8,7 @@ public class DownloadProgressTests
     [Fact]
     public void ReportsFractionWhenTheTotalIsKnown()
     {
-        var progress = new ModelInstaller.DownloadProgress(50, 200);
+        var progress = new DownloadProgress(50, 200);
 
         Assert.Equal(0.25d, progress.Fraction!.Value, 4);
     }
@@ -17,7 +18,7 @@ public class DownloadProgressTests
     [InlineData(0L)]
     public void HasNoFractionWithoutAUsableTotal(long? total)
     {
-        var progress = new ModelInstaller.DownloadProgress(50, total);
+        var progress = new DownloadProgress(50, total);
 
         Assert.Null(progress.Fraction);
     }
@@ -25,7 +26,7 @@ public class DownloadProgressTests
     [Fact]
     public void DescribesPercentageAndMegabytes()
     {
-        var progress = new ModelInstaller.DownloadProgress(65_123_456, 147_964_211);
+        var progress = new DownloadProgress(65_123_456, 147_964_211);
 
         string text = progress.Describe();
 
@@ -37,7 +38,7 @@ public class DownloadProgressTests
     public void DescribesBytesOnlyWhenTheServerSendsNoLength()
     {
         // No Content-Length means no percentage, but silence would look like a hang.
-        var progress = new ModelInstaller.DownloadProgress(1_048_576, null);
+        var progress = new DownloadProgress(1_048_576, null);
 
         string text = progress.Describe();
 
@@ -48,7 +49,7 @@ public class DownloadProgressTests
     [Fact]
     public void DescribesACompletedDownloadAsAHundredPercent()
     {
-        var progress = new ModelInstaller.DownloadProgress(147_964_211, 147_964_211);
+        var progress = new DownloadProgress(147_964_211, 147_964_211);
 
         Assert.Contains("100%", progress.Describe());
     }

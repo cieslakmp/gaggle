@@ -17,9 +17,10 @@ The project builds with `TreatWarningsAsErrors`, so **a new warning is a broken
 build**. Fix the cause; only suppress in `.editorconfig`, with a comment saying why.
 
 Tests live in `tests/Gaggle.Tests` (xunit.v3). They cover the sanitiser, bindings and
-their config migration, config load/save, download progress and the RMS gate — the
-logic that can be checked without Condor, a microphone or a joystick. Anything
-touching `Interop/` needs real hardware and is verified by hand.
+their config migration, config load/save, download progress, the RMS gate and the update
+checker — the logic that can be checked without Condor, a microphone or a joystick.
+Anything touching `Interop/`, and the update swap itself, needs real hardware or a real
+install and is verified by hand.
 
 `global.json` opts into Microsoft.Testing.Platform. The .NET 10 SDK refuses to run
 tests through VSTest, and xunit.v3 hosts the new platform itself, so do not add
@@ -29,7 +30,8 @@ targets and `dotnet test` fails outright.
 ## Releasing
 
 Tagging `v*` triggers `.github/workflows/release.yml`, which builds, tests, packages
-and opens a draft release. The tag must be annotated — its message becomes the release
+and opens a draft release. It publishes the zip and a `.sha256` beside it; the in-app
+updater will not install a release that has no checksum. The tag must be annotated — its message becomes the release
 notes — and `<Version>` in the csproj must match the tag, or the workflow fails on
 purpose.
 
@@ -81,6 +83,19 @@ the Amara.org community"), and translation carries those into English whatever w
 spoken. Without the gate in `TranscribeAsync` those get broadcast to a live race.
 `MessageSanitiser` is the second line of defence, not the first.
 
+**The update path must survive its own failure.** `Update/UpdateInstaller.cs` replaces a
+running executable, which Windows will not let a process do to itself. Three things hold
+it together and all three look like fussiness. The install folder is located through
+`Environment.ProcessPath` because `Assembly.Location` is *empty* under
+`PublishSingleFile` — read it there and the updater silently targets nothing. The
+downloaded zip is checked against the SHA256 published beside it *before* anything is
+extracted, and nothing under the install folder is touched until that passes. And
+`apply.cmd` waits for this process to exit and gives up rather than forcing it: a failed
+update has to leave a working install behind, because the alternative is a pilot with no
+app and a race starting. The release assets are matched by suffix (`-win-x64.zip`,
+`-win-x64.zip.sha256`) rather than by rebuilding the file name, so renaming them in
+`release.yml` breaks every copy already installed — and no test will catch it.
+
 ## Layout
 
 | Path | Role |
@@ -88,9 +103,11 @@ spoken. Without the gate in `TranscribeAsync` those get broadcast to a live race
 | `Interop/` | Win32 P/Invoke, scan-code injection, the PTT hook, winmm joystick |
 | `Input/` | Push-to-talk binding, joystick polling, the keyboard/joystick merge |
 | `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires |
+| `Net/` | The one streaming download loop, shared by models and updates |
 | `Speech/` | Whisper.net wrapper, language list, decoding options, ggml model download |
 | `Text/` | Transcript sanitising before anything reaches chat |
 | `Condor/` | Process/foreground detection and the chat macro |
+| `Update/` | GitHub release lookup, version comparison, the self-replacing install |
 | `Ui/` | Tray icon, state machine, review overlay, settings window |
 | `tests/Gaggle.Tests/` | xunit.v3 suite for the hardware-free logic |
 
@@ -116,6 +133,9 @@ only catches a hand-edited config. The tray offers two language choices, not fiv
 because with translation on `pl`, `de` and `es` all decode through the same path to
 near-identical English; the per-language codes survive in config for pinning one when
 detection picks wrong.
+
+`ReloadConfig` in `Ui/TrayApplicationContext.cs` copies config fields across one by one.
+A new `AppConfig` property that is not added there is silently dropped by "Reload config".
 
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the

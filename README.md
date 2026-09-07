@@ -47,6 +47,28 @@ Unblock-File .\Gaggle-*-win-x64.zip
 A signing certificate would remove the warning, but it is a recurring cost, so for now
 the warning stays.
 
+### Updating
+
+Gaggle checks GitHub for a new release once a day and, when it finds one, offers it in
+the tray menu with the release notes. Accepting downloads the new zip, checks it against
+the SHA256 published with the release, and swaps it in — Gaggle closes and reopens by
+itself, usually in a few seconds. Nothing in your folder is touched until the download
+has been verified, and the update never asks for administrator rights.
+
+Because the app downloads the zip directly, the SmartScreen warning above does *not*
+come back for an updated copy.
+
+Two things to know:
+
+- **Installed somewhere you cannot write to** — `C:\Program Files`, say, or a read-only
+  share — and Gaggle offers the releases page instead of updating itself. Extract it
+  over the old copy by hand, as on first install.
+- **Skipping a version** silences the daily check for that release only. **Check for
+  updates…** in the tray menu ignores it, so nothing is ever lost for good.
+
+To turn the daily check off entirely, set `CheckForUpdates` to `false` in
+[the config file](#configuration). The tray menu item still works when you ask it to.
+
 ## How it works
 
 ```
@@ -115,6 +137,8 @@ buttons would need DirectInput instead.
 | `TranscriptionThreads` | `0` | `0` uses every hardware thread. Lower it if Condor stutters |
 | `FastTranscription` | `true` | Trims Whisper's 30-second window to what you actually said |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
+| `CheckForUpdates` | `true` | Daily check against the GitHub releases API. See [Updating](#updating) |
+| `SkippedVersion` | unset | A release you chose to skip. Cleared by picking a newer one |
 
 ## Languages
 
@@ -264,12 +288,15 @@ Both must ship together.
 dotnet test -c Release
 ```
 
-65 tests over the parts that can be checked without Condor, a microphone or a
+179 tests over the parts that can be checked without Condor, a microphone or a
 joystick: the transcript sanitiser, push-to-talk bindings and their config migration,
-config load and save, download progress formatting, and the RMS silence gate.
+config load and save, download progress formatting, the RMS silence gate, and the
+update checker — version comparison, release parsing, the daily throttle and the
+checksum reader.
 
-Input injection, the keyboard hook and joystick polling are not covered — they need
-real hardware and a running sim, and are verified by hand.
+Input injection, the keyboard hook, joystick polling and the update swap itself are not
+covered — they need real hardware, a running sim or a real install, and are verified by
+hand.
 
 Note the `global.json`: the .NET 10 SDK no longer runs tests through VSTest, so the
 repo opts into Microsoft.Testing.Platform, which xunit.v3 hosts directly. Adding

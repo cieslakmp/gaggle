@@ -104,6 +104,24 @@ public sealed class AppConfig
     /// <summary>Longest message typed into chat. Verify against Condor and adjust.</summary>
     public int MaxMessageLength { get; set; } = 120;
 
+    // ----------------------------------------------------------------- Updates
+
+    /// <summary>
+    /// Whether Gaggle looks for a new release in the background. The check runs at most
+    /// once a day and talks only to the GitHub releases API; turn it off and the tray
+    /// menu item is the only thing that ever reaches the network.
+    /// </summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>When the last background check ran, so restarts do not re-check.</summary>
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+
+    /// <summary>
+    /// A version the user chose to skip. Background checks stay quiet about it; an
+    /// explicit "Check for updates" ignores it, so a mis-click is recoverable.
+    /// </summary>
+    public string? SkippedVersion { get; set; }
+
     // ------------------------------------------------------------- Persistence
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
