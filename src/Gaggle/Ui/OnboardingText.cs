@@ -8,10 +8,10 @@ namespace Gaggle.Ui;
 /// otherwise show up as a blank label in somebody else's language, which is exactly the
 /// kind of fault nobody who reads English would ever see.
 ///
-/// Only this window is translated. The tray menu, the settings window and the error
-/// messages are still English, so the instructions below quote the English menu labels
-/// verbatim - translating the name of a menu item the reader is looking at would make
-/// the guide harder to follow, not easier.
+/// Separate from <see cref="UiText"/>, which holds the rest of the interface: this is
+/// one long block of prose that is rewritten as a whole, and mixing it into the string
+/// table would bury eighty short labels under six paragraphs. Both draw on the same
+/// <see cref="UiLanguages"/> list, so neither can offer a language the other lacks.
 /// </summary>
 public sealed record OnboardingText(
     string LanguageName,
@@ -36,7 +36,7 @@ public sealed record OnboardingText(
     /// The languages the guide exists in, in the order the picker offers them. English
     /// leads because it is both the default and the fallback.
     /// </summary>
-    public static IReadOnlyList<string> AvailableCodes { get; } = ["en", "pl", "de", "es"];
+    public static IReadOnlyList<string> AvailableCodes => UiLanguages.Codes;
 
     /// <summary>
     /// The guide in the requested language, falling back to English for anything else.
@@ -44,7 +44,7 @@ public sealed record OnboardingText(
     /// A hand-edited config naming a language nobody has written yet gets English rather
     /// than an empty window.
     /// </summary>
-    public static OnboardingText For(string? languageCode) => languageCode?.ToLowerInvariant() switch
+    public static OnboardingText For(string? languageCode) => UiLanguages.Normalise(languageCode) switch
     {
         "pl" => Polish,
         "de" => German,

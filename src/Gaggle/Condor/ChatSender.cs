@@ -1,5 +1,6 @@
 using Gaggle.Configuration;
 using Gaggle.Interop;
+using Gaggle.Ui;
 
 namespace Gaggle.Condor;
 
@@ -21,17 +22,15 @@ public readonly record struct SendResult(SendOutcome Outcome, string? Detail = n
 
     public string Describe() => Outcome switch
     {
-        SendOutcome.Sent => "Message sent.",
-        SendOutcome.CondorNotRunning => "Condor is not running.",
-        SendOutcome.CondorNotFocused => "Condor is not the active window.",
-        SendOutcome.RateLimited => "Slow down — rate limit active.",
-        SendOutcome.NothingToSend => "Nothing to send.",
-        SendOutcome.Busy => "Still sending the previous message.",
-        SendOutcome.UnsupportedCharacters => $"Cannot type on this keyboard layout: {Detail}",
-        SendOutcome.InjectionBlocked =>
-            "Windows blocked the keystrokes. Condor is probably running as administrator — "
-            + "run Gaggle as administrator too.",
-        _ => "Unknown result.",
+        SendOutcome.Sent => UiText.Current.SendSent,
+        SendOutcome.CondorNotRunning => UiText.Current.SendCondorNotRunning,
+        SendOutcome.CondorNotFocused => UiText.Current.SendCondorNotFocused,
+        SendOutcome.RateLimited => UiText.Current.SendRateLimited,
+        SendOutcome.NothingToSend => UiText.Current.SendNothingToSend,
+        SendOutcome.Busy => UiText.Current.SendBusy,
+        SendOutcome.UnsupportedCharacters => UiText.Current.SendUnsupportedCharacters(Detail ?? string.Empty),
+        SendOutcome.InjectionBlocked => UiText.Current.SendInjectionBlocked,
+        _ => UiText.Current.SendUnknown,
     };
 }
 

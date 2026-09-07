@@ -158,15 +158,24 @@ A new `AppConfig` property that is not added there is silently dropped by "Reloa
 `UiLanguage` is the language the getting-started guide is written in, and is deliberately
 not `Language`, which is what the pilot speaks to Whisper. They look like the same
 decision and are not: `Language` defaults to English for everyone, including the Polish
-pilots `UiLanguage` exists for. Onboarding is the only translated surface — the menus,
-the settings window and every status message are English — so `Ui/OnboardingText.cs`
-quotes the English menu labels verbatim rather than translating names the reader is
-looking at.
+pilots `UiLanguage` exists for. The tray keeps them apart by name — **Speech language**
+against **Display language** — and both menus sit next to each other so the difference is
+visible rather than remembered.
 
-Each language is one instance of a record with named members rather than a dictionary of
-keys, so adding a line to the guide fails the build until all four languages have one. A
-missing key would otherwise render as a blank label in a language the author does not
-read.
+`Ui/UiText.cs` holds the interface and `Ui/OnboardingText.cs` the guide, both as one
+record instance per language drawing on the same `UiLanguages` list. Members are
+`required`, so adding a string fails the build until all four languages have one, and a
+string with arguments is a `Func` rather than a format string, so a translation that
+takes an argument and forgets to use it fails a test rather than shipping a sentence with
+a hole in it. `UiTextTests` checks exactly that, plus that no language is quietly still
+English. A `.resx` file would fall back silently on the first and not check the second.
+
+`UiText.Current` is a field, not an auto-property: a property initialiser there runs
+before the language tables below it and assigns null. Changing language rebuilds the tray
+menu, because half its items are created inside `BuildMenu` — and the rebuild has to
+remove the four items that outlive it before disposing the old menu, since disposing a
+menu disposes everything in it. Both rebuild paths defer through `BeginInvokeOnUi`, as
+they run from a click on the menu being replaced.
 
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the

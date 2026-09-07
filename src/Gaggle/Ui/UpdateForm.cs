@@ -35,7 +35,7 @@ internal sealed class UpdateForm : Form
 
         Choice = UpdateChoice.Later;
 
-        Text = $"Update {AppInfo.Name}";
+        Text = UiText.Current.UpdateWindowTitle(AppInfo.Name);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -46,7 +46,7 @@ internal sealed class UpdateForm : Form
 
         var title = new Label
         {
-            Text = $"{AppInfo.Name} {release.Version} is available",
+            Text = UiText.Current.UpdateHeading($"{AppInfo.Name} {release.Version}"),
             Font = new Font("Segoe UI", 12f, FontStyle.Bold),
             Location = new Point(16, 16),
             AutoSize = true,
@@ -55,8 +55,8 @@ internal sealed class UpdateForm : Form
         var current = new Label
         {
             Text = canInstallInPlace
-                ? $"You are running {AppInfo.Version}. Gaggle will restart to finish."
-                : $"You are running {AppInfo.Version}. This copy cannot update itself.",
+                ? UiText.Current.UpdateWillRestart(AppInfo.Version)
+                : UiText.Current.UpdateCannotSelfInstall(AppInfo.Version),
             Location = new Point(18, 48),
             Width = 424,
             ForeColor = SystemColors.GrayText,
@@ -79,7 +79,7 @@ internal sealed class UpdateForm : Form
 
         var link = new LinkLabel
         {
-            Text = "View this release on GitHub",
+            Text = UiText.Current.UpdateViewOnGitHub,
             Location = new Point(18, 246),
             AutoSize = true,
         };
@@ -87,7 +87,7 @@ internal sealed class UpdateForm : Form
 
         var skip = new Button
         {
-            Text = "Skip this version",
+            Text = UiText.Current.UpdateSkipVersion,
             Location = new Point(18, 282),
             Width = 120,
             Height = 26,
@@ -96,7 +96,7 @@ internal sealed class UpdateForm : Form
 
         var later = new Button
         {
-            Text = "Later",
+            Text = UiText.Current.UpdateLater,
             Location = new Point(238, 282),
             Width = 100,
             Height = 26,
@@ -105,7 +105,7 @@ internal sealed class UpdateForm : Form
 
         var install = new Button
         {
-            Text = canInstallInPlace ? "Install now" : "Open downloads",
+            Text = canInstallInPlace ? UiText.Current.UpdateInstallNow : UiText.Current.UpdateOpenDownloads,
             Location = new Point(344, 282),
             Width = 100,
             Height = 26,
@@ -132,7 +132,7 @@ internal sealed class UpdateForm : Form
     /// </summary>
     private static string Normalise(string notes) =>
         string.IsNullOrWhiteSpace(notes)
-            ? "No release notes were published."
+            ? UiText.Current.UpdateNoNotes
             : notes.Replace("\r\n", "\n", StringComparison.Ordinal)
                 .Replace("\n", Environment.NewLine, StringComparison.Ordinal)
                 .Trim();

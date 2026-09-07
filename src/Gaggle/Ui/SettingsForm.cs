@@ -31,7 +31,7 @@ internal sealed class SettingsForm : Form
         _controller = controller;
         _binding = current;
 
-        Text = "Gaggle settings";
+        Text = UiText.Current.SettingsTitle;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -42,7 +42,7 @@ internal sealed class SettingsForm : Form
 
         var title = new Label
         {
-            Text = "Push-to-talk",
+            Text = UiText.Current.SettingsPushToTalkTitle,
             Font = new Font("Segoe UI", 10f, FontStyle.Bold),
             Location = new Point(16, 16),
             AutoSize = true,
@@ -59,7 +59,7 @@ internal sealed class SettingsForm : Form
 
         _changeButton = new Button
         {
-            Text = "Change…",
+            Text = UiText.Current.SettingsChange,
             Location = new Point(276, 43),
             Width = 120,
         };
@@ -75,7 +75,7 @@ internal sealed class SettingsForm : Form
 
         var devicesTitle = new Label
         {
-            Text = "Detected devices",
+            Text = UiText.Current.SettingsDetectedDevices,
             Font = new Font("Segoe UI", 10f, FontStyle.Bold),
             Location = new Point(16, 116),
             AutoSize = true,
@@ -98,7 +98,7 @@ internal sealed class SettingsForm : Form
 
         var sendingTitle = new Label
         {
-            Text = "Sending",
+            Text = UiText.Current.SettingsSendingTitle,
             Font = new Font(Font, FontStyle.Bold),
             Location = new Point(16, 288),
             AutoSize = true,
@@ -106,7 +106,7 @@ internal sealed class SettingsForm : Form
 
         _handsFreeBox = new CheckBox
         {
-            Text = "Hands-free — send without reviewing",
+            Text = UiText.Current.SettingsHandsFree,
             Location = new Point(16, 314),
             AutoSize = true,
             Checked = handsFree,
@@ -122,7 +122,7 @@ internal sealed class SettingsForm : Form
 
         _cuesBox = new CheckBox
         {
-            Text = "Play a tone when recording starts, sends, or is dropped",
+            Text = UiText.Current.SettingsAudibleCues,
             Location = new Point(16, 410),
             AutoSize = true,
             Checked = audibleCues,
@@ -130,7 +130,7 @@ internal sealed class SettingsForm : Form
 
         _okButton = new Button
         {
-            Text = "OK",
+            Text = UiText.Current.SettingsOk,
             DialogResult = DialogResult.OK,
             Location = new Point(226, 440),
             Width = 84,
@@ -138,7 +138,7 @@ internal sealed class SettingsForm : Form
 
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = UiText.Current.SettingsCancel,
             DialogResult = DialogResult.Cancel,
             Location = new Point(318, 440),
             Width = 84,
@@ -178,12 +178,8 @@ internal sealed class SettingsForm : Form
             : SystemColors.GrayText;
 
         _handsFreeNote.Text = _handsFreeBox.Checked
-            ? "Whatever is transcribed goes straight into chat, mishearings included, "
-                + "with nothing to read or discard first. Recordings are also cut shorter "
-                + "than usual, because nobody is watching what the time limit sends."
-            : "Every message waits in the overlay first: Enter sends it, Escape discards "
-                + "it. In VR that overlay cannot be seen or answered — that is what "
-                + "hands-free is for.";
+            ? UiText.Current.SettingsHandsFreeOn
+            : UiText.Current.SettingsHandsFreeOff;
     }
 
     private void ToggleCapture()
@@ -197,10 +193,9 @@ internal sealed class SettingsForm : Form
 
         _controller.BeginCapture();
 
-        _changeButton.Text = "Stop";
-        _bindingBox.Text = "Press a key or button…";
-        _hint.Text = "Listening. Every keystroke is captured, so use the Stop button "
-            + "with the mouse if you change your mind.";
+        _changeButton.Text = UiText.Current.SettingsStop;
+        _bindingBox.Text = UiText.Current.SettingsPressAKey;
+        _hint.Text = UiText.Current.SettingsCapturing;
         _okButton.Enabled = false;
     }
 
@@ -219,18 +214,17 @@ internal sealed class SettingsForm : Form
 
     private void RefreshBinding()
     {
-        _changeButton.Text = "Change…";
+        _changeButton.Text = UiText.Current.SettingsChange;
         _bindingBox.Text = _binding.Describe();
         _okButton.Enabled = true;
 
         _hint.Text = _binding.IsKeyboard
-            ? "This key is hidden from Condor while Gaggle is running."
-            : "Joystick buttons cannot be hidden from Condor.";
+            ? UiText.Current.SettingsKeyHidden
+            : UiText.Current.SettingsButtonNotHidden;
 
         _warning.Text = _binding.IsKeyboard
             ? string.Empty
-            : "Condor will still see this button. Pick one the sim does not use, or it "
-                + "will do both things at once.";
+            : UiText.Current.SettingsJoystickWarning;
     }
 
     private void RefreshDevices()
@@ -241,7 +235,7 @@ internal sealed class SettingsForm : Form
 
         if (found.Count == 0)
         {
-            _devices.Items.Add("No joysticks detected — keyboard only.");
+            _devices.Items.Add(UiText.Current.SettingsNoJoysticks);
             return;
         }
 

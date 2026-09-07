@@ -15,7 +15,7 @@ internal sealed class AboutForm : Form
 {
     public AboutForm()
     {
-        Text = $"About {AppInfo.Name}";
+        Text = UiText.Current.AboutTitle(AppInfo.Name);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -43,7 +43,7 @@ internal sealed class AboutForm : Form
 
         var author = new Label
         {
-            Text = $"by {AppInfo.Author}",
+            Text = UiText.Current.AboutByAuthor(AppInfo.Author),
             Location = new Point(18, 86),
             AutoSize = true,
         };
@@ -58,7 +58,7 @@ internal sealed class AboutForm : Form
 
         var report = new LinkLabel
         {
-            Text = "Report a bug or suggest an idea",
+            Text = UiText.Current.AboutReportLink,
             Location = new Point(18, 132),
             AutoSize = true,
         };
@@ -66,7 +66,7 @@ internal sealed class AboutForm : Form
 
         var dataLabel = new Label
         {
-            Text = "Settings and speech models:",
+            Text = UiText.Current.AboutDataFolder,
             Location = new Point(18, 166),
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
@@ -83,7 +83,7 @@ internal sealed class AboutForm : Form
 
         var close = new Button
         {
-            Text = "Close",
+            Text = UiText.Current.AboutClose,
             DialogResult = DialogResult.OK,
             Location = new Point(300, 214),
             Width = 84,

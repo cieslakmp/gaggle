@@ -16,8 +16,10 @@ internal static class Program
 
         if (!isFirstInstance)
         {
+            // English on purpose: this fires before any config is read, and the second
+            // instance has no business loading one just to word a refusal.
             MessageBox.Show(
-                "Gaggle is already running — look for it in the notification area.",
+                UiText.English.AlreadyRunning,
                 "Gaggle",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);

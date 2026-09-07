@@ -91,17 +91,21 @@ hold PTT key  ──►  record mic  ──►  Whisper (local)  ──►  revi
 Gaggle lives in the notification area — there is no main window.
 
 The first time it starts, a short **Getting started** guide opens with these steps in
-it. It is written in English, Polish, German or Spanish — pick one from the box in its
-top-right corner and it is remembered. **Getting started…** in the tray menu reopens it
-whenever you want. Only the guide is translated; the menus and messages are English.
+it. **Getting started…** in the tray menu reopens it whenever you want.
+
+Gaggle speaks English, Polish, German and Spanish. Right-click → **Display language**,
+or pick one in the guide; either way it is remembered and takes effect immediately.
+Note that **Display language** is what you read and **Speech language** is what you say
+into the microphone — they are separate settings on purpose.
 
 1. Right-click the tray icon → **Speech model** → pick one. It downloads to
    `%APPDATA%\Gaggle`, with progress shown in the overlay and the tray tooltip.
 2. Right-click → **Microphone** → pick your headset.
 3. Right-click → **Push-to-talk…** to bind a key or a joystick button, unless the
    Caps Lock default suits you.
-4. Right-click → **Language** if you speak something other than English. This needs a
-   multilingual model — see below.
+4. Right-click → **Speech language** if you speak something other than English. This
+   needs a multilingual model — see below.
+5. Right-click → **Display language** to read Gaggle in Polish, German or Spanish.
 5. Start Condor. The tray icon turns blue when everything is ready.
 6. Hold your push-to-talk control, speak, release.
 
@@ -171,14 +175,14 @@ mode too.
 | `TranscriptionThreads` | `0` | `0` uses every hardware thread. Lower it if Condor stutters |
 | `FastTranscription` | `true` | Trims Whisper's 30-second window to what you actually said |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
-| `UiLanguage` | `en` | Language of the getting-started guide: `en`, `pl`, `de` or `es` |
+| `UiLanguage` | `en` | Language Gaggle is displayed in: `en`, `pl`, `de` or `es`. Not the same as `Language` |
 | `OnboardingSeen` | `false` | Set once the guide has been shown, so it opens only on the first run |
 | `CheckForUpdates` | `true` | Daily check against the GitHub releases API. See [Updating](#updating) |
 | `SkippedVersion` | unset | A release you chose to skip. Cleared by picking a newer one |
 
 ## Languages
 
-Right-click the tray icon → **Language**. There are two choices, because there are
+Right-click the tray icon → **Speech language**. There are two choices, because there are
 only two behaviours:
 
 | Choice | What happens | Model |
@@ -333,10 +337,10 @@ Both must ship together.
 dotnet test -c Release
 ```
 
-216 tests over the parts that can be checked without Condor, a microphone or a
+236 tests over the parts that can be checked without Condor, a microphone or a
 joystick: the transcript sanitiser, push-to-talk bindings and their config migration,
-config load and save, the cue tone buffers, the four onboarding translations, download
-progress formatting, the RMS silence gate, and the update checker — version comparison, release parsing, the daily throttle and the
+config load and save, the cue tone buffers, all four translations of the interface and
+the guide, download progress formatting, the RMS silence gate, and the update checker — version comparison, release parsing, the daily throttle and the
 checksum reader.
 
 Input injection, the keyboard hook, joystick polling and the update swap itself are not
