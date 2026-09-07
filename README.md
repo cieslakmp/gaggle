@@ -355,6 +355,12 @@ the notes. Review it on the Releases page and publish when it reads right.
 It fails before building if `<Version>` and the tag disagree, so a binary can never
 ship stamped with a version that was never released.
 
+## Contributing
+
+Pull requests are welcome — open an issue first for anything beyond a typo, because
+some of what looks like missing polish is deliberate. [CONTRIBUTING.md](CONTRIBUTING.md)
+has the process, how to build and test, and the invariants a change must not break.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
