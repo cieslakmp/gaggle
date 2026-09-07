@@ -1,0 +1,32 @@
+name: Suggestion
+description: An idea for something Gaggle should do differently.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Say what you were trying to do rather than only what to build — the problem
+        usually has more than one answer, and some of them are smaller.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The flying situation, not the feature.
+      placeholder: |
+        In a gaggle I want to call a thermal fast, and by the time I have read the review
+        overlay and pressed Enter the moment has passed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional — how you would solve it, if you have a view.
+
+  - type: input
+    id: version
+    attributes:
+      label: Gaggle version
+      placeholder: "0.4.0"

@@ -21,7 +21,7 @@ internal sealed class AboutForm : Form
         MinimizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(400, 232);
+        ClientSize = new Size(400, 252);
         Font = new Font("Segoe UI", 9f);
 
         var title = new Label
@@ -56,10 +56,18 @@ internal sealed class AboutForm : Form
         };
         repository.LinkClicked += (_, _) => Open(AppInfo.RepositoryUrl);
 
+        var report = new LinkLabel
+        {
+            Text = "Report a bug or suggest an idea",
+            Location = new Point(18, 132),
+            AutoSize = true,
+        };
+        report.LinkClicked += (_, _) => Open(IssueLink.ChooserUrl);
+
         var dataLabel = new Label
         {
             Text = "Settings and speech models:",
-            Location = new Point(18, 146),
+            Location = new Point(18, 166),
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
         };
@@ -67,7 +75,7 @@ internal sealed class AboutForm : Form
         var dataFolder = new LinkLabel
         {
             Text = AppConfig.DataDirectory,
-            Location = new Point(18, 166),
+            Location = new Point(18, 186),
             Width = 366,
             AutoEllipsis = true,
         };
@@ -77,11 +85,11 @@ internal sealed class AboutForm : Form
         {
             Text = "Close",
             DialogResult = DialogResult.OK,
-            Location = new Point(300, 194),
+            Location = new Point(300, 214),
             Width = 84,
         };
 
-        Controls.AddRange([title, description, author, repository, dataLabel, dataFolder, close]);
+        Controls.AddRange([title, description, author, repository, report, dataLabel, dataFolder, close]);
         AcceptButton = close;
         CancelButton = close;
     }

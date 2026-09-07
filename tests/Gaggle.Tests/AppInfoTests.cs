@@ -38,7 +38,7 @@ public class AppInfoTests
     [Fact]
     public void CreditsTheAuthor()
     {
-        Assert.Equal("Maciej Cieslak", AppInfo.Author);
+        Assert.Equal("Maciej Cieslak - VLZ", AppInfo.Author);
     }
 
     [Fact]

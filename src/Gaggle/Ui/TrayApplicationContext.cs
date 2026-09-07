@@ -209,6 +209,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_updateItem);
+        menu.Items.Add("Report a bug…", null, (_, _) => ReportIssue(IssueLink.BugTemplate));
+        menu.Items.Add("Suggest an idea…", null, (_, _) => ReportIssue(IssueLink.SuggestionTemplate));
         menu.Items.Add($"About {AppInfo.Name}…", null, (_, _) => ShowAbout());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
@@ -759,6 +761,44 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// <summary>NotifyIcon.Text throws above 63 characters.</summary>
     private static string Truncate(string text, int maxLength) =>
         text.Length <= maxLength ? text : text[..maxLength];
+
+    // ---------------------------------------------------------------- Feedback
+
+    /// <summary>
+    /// Opens one of the GitHub issue forms in the browser, prefilled.
+    ///
+    /// Built on click rather than kept current, because the interesting part — the
+    /// model, the language, whether Condor is up — is exactly what someone changes
+    /// just before the thing they want to report.
+    /// </summary>
+    private void ReportIssue(string template)
+    {
+        // The suggestion form has no setup field, and GitHub ignores a parameter that
+        // matches no field rather than saying so, so it is left off instead.
+        string? environment = template == IssueLink.BugTemplate
+            ? IssueLink.DescribeEnvironment(_config, DescribeMicrophone(), _watcher.IsRunning)
+            : null;
+
+        Open(IssueLink.For(template, environment));
+    }
+
+    /// <summary>
+    /// The microphone as a person would name it. An index that no longer resolves is
+    /// worth saying out loud: it is a plausible cause of "nothing was recorded".
+    /// </summary>
+    private string DescribeMicrophone()
+    {
+        if (_config.MicrophoneDeviceIndex < 0)
+        {
+            return "system default";
+        }
+
+        IReadOnlyList<string> devices = MicrophoneRecorder.ListDevices();
+
+        return _config.MicrophoneDeviceIndex < devices.Count
+            ? devices[_config.MicrophoneDeviceIndex]
+            : $"index {_config.MicrophoneDeviceIndex} — no such device";
+    }
 
     private static void ShowAbout()
     {
