@@ -1,0 +1,6 @@
+# Every change needs review from the maintainer before it can land.
+#
+# Paired with "require review from Code Owners" on the main ruleset: without that
+# setting this file only requests a review, it does not require one.
+
+* @cieslakmp
