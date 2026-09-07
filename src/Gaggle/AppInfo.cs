@@ -12,7 +12,7 @@ public static class AppInfo
 {
     public const string Name = "Gaggle";
 
-    public const string Author = "Maciej Cieslak";
+    public const string Author = "Maciej Cieslak - VLZ";
 
     public const string RepositoryUrl = "https://github.com/cieslakmp/gaggle";
 
