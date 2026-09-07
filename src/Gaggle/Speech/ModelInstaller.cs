@@ -1,3 +1,5 @@
+using Gaggle.Net;
+
 namespace Gaggle.Speech;
 
 /// <summary>
@@ -7,9 +9,6 @@ namespace Gaggle.Speech;
 public static class ModelInstaller
 {
     private const string BaseUrl = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
-
-    /// <summary>Minimum gap between progress reports.</summary>
-    private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(200);
 
     /// <summary>
     /// Models worth offering, English-only first and then multilingual, each group
@@ -64,88 +63,20 @@ public static class ModelInstaller
     }
 
     /// <summary>
-    /// Downloads the model to a temporary file and moves it into place once complete,
-    /// so an interrupted download never leaves a half-written model that fails to load.
-    ///
-    /// Progress is reported at most every <see cref="ReportInterval"/>, because these
-    /// files are large enough that reporting every buffer would flood the UI thread.
+    /// Downloads a model into the Gaggle data folder. The streaming, progress reporting
+    /// and partial-file handling live in <see cref="FileDownloader"/>, which the updater
+    /// shares.
     /// </summary>
-    public static async Task DownloadAsync(
+    public static Task DownloadAsync(
         string modelFileName,
         string destinationPath,
         IProgress<DownloadProgress>? progress = null,
-        CancellationToken cancellationToken = default)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-        string tempPath = destinationPath + ".partial";
-
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-
-        using HttpResponseMessage response = await http.GetAsync(
-            BaseUrl + modelFileName,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-
-        long? total = response.Content.Headers.ContentLength;
-
-        await using (Stream source = await response.Content.ReadAsStreamAsync(cancellationToken))
-        await using (var destination = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            byte[] buffer = new byte[81_920];
-            long written = 0;
-            int read;
-            // Seeded to now, so the opening report below is not immediately repeated
-            // by the first loop iteration.
-            long lastReportTicks = Environment.TickCount64;
-
-            progress?.Report(new DownloadProgress(0, total));
-
-            while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
-            {
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                written += read;
-
-                long now = Environment.TickCount64;
-                if (now - lastReportTicks >= ReportInterval.TotalMilliseconds)
-                {
-                    lastReportTicks = now;
-                    progress?.Report(new DownloadProgress(written, total));
-                }
-            }
-
-            progress?.Report(new DownloadProgress(written, total ?? written));
-        }
-
-        File.Move(tempPath, destinationPath, overwrite: true);
-    }
+        CancellationToken cancellationToken = default) =>
+        FileDownloader.DownloadAsync(BaseUrl + modelFileName, destinationPath, progress, cancellationToken);
 
     public sealed record ModelChoice(string FileName, string Name, string Notes)
     {
         /// <summary>Whether this build can handle anything other than English.</summary>
         public bool IsMultilingual => IsMultilingualFile(FileName);
-    }
-
-    /// <summary>
-    /// Bytes received so far, and the total when the server declares one. A null
-    /// total means the response had no Content-Length, so only bytes can be shown.
-    /// </summary>
-    public readonly record struct DownloadProgress(long BytesReceived, long? TotalBytes)
-    {
-        public double? Fraction => TotalBytes is > 0 ? (double)BytesReceived / TotalBytes.Value : null;
-
-        /// <summary>Human-readable form, e.g. "42% — 62.1 of 141.1 MB".</summary>
-        public string Describe()
-        {
-            const double Megabyte = 1024 * 1024;
-
-            if (TotalBytes is > 0)
-            {
-                return $"{Fraction!.Value:P0} — {BytesReceived / Megabyte:F1} of {TotalBytes.Value / Megabyte:F1} MB";
-            }
-
-            return $"{BytesReceived / Megabyte:F1} MB";
-        }
     }
 }

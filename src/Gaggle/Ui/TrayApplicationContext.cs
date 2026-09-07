@@ -5,8 +5,10 @@ using Gaggle.Condor;
 using Gaggle.Configuration;
 using Gaggle.Input;
 using Gaggle.Interop;
+using Gaggle.Net;
 using Gaggle.Speech;
 using Gaggle.Text;
+using Gaggle.Update;
 
 namespace Gaggle.Ui;
 
@@ -25,6 +27,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon _tray;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _statusItem;
+    private readonly ToolStripMenuItem _updateItem;
     private readonly CondorWatcher _watcher;
     private readonly ChatSender _sender;
     private readonly MicrophoneRecorder _recorder = new();
@@ -34,14 +37,27 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ReviewOverlay _overlay = new();
     private readonly System.Windows.Forms.Timer _recordingLimit;
     private readonly System.Windows.Forms.Timer _statusTimeout;
+    private readonly System.Windows.Forms.Timer _updateCheckDelay;
 
     /// <summary>NotifyIcon.Text throws above this length.</summary>
     private const int TrayTextLimit = 63;
+
+    /// <summary>The update menu item before a release has been found.</summary>
+    private const string CheckForUpdatesText = "Check for updates…";
+
+    /// <summary>
+    /// How long after startup the background update check runs. Long enough that the
+    /// tray icon is up and the model has started loading first.
+    /// </summary>
+    private const int UpdateCheckDelayMs = 5000;
 
     private WhisperTranscriber? _transcriber;
     private string? _pendingMessage;
     private bool _busy;
     private bool _downloading;
+
+    /// <summary>A release newer than this one, once a check has found one.</summary>
+    private ReleaseInfo? _availableUpdate;
 
     /// <summary>Set when the chosen language needs a model the chosen model is not.</summary>
     private bool _needsMultilingualModel;
@@ -54,6 +70,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _sender = new ChatSender(_watcher);
 
         _statusItem = new ToolStripMenuItem("Starting…") { Enabled = false };
+
+        _updateItem = new ToolStripMenuItem(CheckForUpdatesText);
+        _updateItem.Click += async (_, _) =>
+        {
+            // Once a release is known, the item is an offer rather than a question, so
+            // clicking it should not go back to GitHub to be told the same thing.
+            if (_availableUpdate is not null)
+            {
+                ShowUpdate();
+                return;
+            }
+
+            await CheckForUpdatesAsync(silent: false);
+        };
+
         _menu = BuildMenu();
 
         _tray = new NotifyIcon
@@ -80,6 +111,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _overlay.HideOverlay();
             }
         };
+
+        // One-shot: the tray icon appears immediately and the check happens once the
+        // startup rush is over.
+        _updateCheckDelay = new System.Windows.Forms.Timer { Interval = UpdateCheckDelayMs };
+        _updateCheckDelay.Tick += (_, _) =>
+        {
+            _updateCheckDelay.Stop();
+            _ = CheckForUpdatesAsync(silent: true);
+        };
+        _updateCheckDelay.Start();
 
         _watcher.StateChanged += (_, _) => RefreshStatus();
         _watcher.Start();
@@ -167,6 +208,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add("Reload config", null, (_, _) => ReloadConfig());
 
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(_updateItem);
         menu.Items.Add($"About {AppInfo.Name}…", null, (_, _) => ShowAbout());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
@@ -682,7 +724,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         // Constructed on the UI thread, so its callbacks arrive there too.
-        var progress = new Progress<ModelInstaller.DownloadProgress>(report =>
+        var progress = new Progress<DownloadProgress>(report =>
         {
             string text = $"Downloading {choice.Name} — {report.Describe()}";
             _overlay.ShowStatus(text);
@@ -776,6 +818,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.TranscriptionThreads = reloaded.TranscriptionThreads;
         _config.FastTranscription = reloaded.FastTranscription;
         _config.MaxMessageLength = reloaded.MaxMessageLength;
+        _config.CheckForUpdates = reloaded.CheckForUpdates;
+        _config.LastUpdateCheckUtc = reloaded.LastUpdateCheckUtc;
+        _config.SkippedVersion = reloaded.SkippedVersion;
 
         _config.PushToTalk = reloaded.PushToTalk;
 
@@ -788,6 +833,190 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         RefreshStatus();
         _ = LoadModelAsync();
+    }
+
+    // ----------------------------------------------------------------- Updates
+
+    /// <summary>
+    /// Looks for a newer release. A background check is throttled and stays silent about
+    /// anything that goes wrong; a check the user asked for always runs and always says
+    /// something, because otherwise the menu item looks broken.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool silent)
+    {
+        if (silent && !UpdateCheck.ShouldCheckInBackground(
+                _config.CheckForUpdates,
+                _config.LastUpdateCheckUtc,
+                DateTimeOffset.UtcNow))
+        {
+            return;
+        }
+
+        ReleaseInfo? release = await GitHubReleases.FetchLatestAsync();
+
+        // Stamped whether or not the fetch worked, so a machine that is offline every
+        // morning does not retry on every single start.
+        _config.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
+        _config.Save();
+
+        if (release is null)
+        {
+            if (!silent)
+            {
+                MessageBox.Show(
+                    "Could not reach GitHub to check for updates.",
+                    "Gaggle",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
+            return;
+        }
+
+        if (!UpdateCheck.ShouldOffer(AppInfo.Version, release.Version, _config.SkippedVersion, silent))
+        {
+            if (!silent)
+            {
+                MessageBox.Show(
+                    $"{AppInfo.Name} {AppInfo.Version} is the latest version.",
+                    "Gaggle",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+
+            return;
+        }
+
+        _availableUpdate = release;
+
+        // The balloon tip is gone in seconds; the menu item is how someone finds this
+        // again an hour later.
+        _updateItem.Text = $"Update to {release.Version}…";
+
+        if (silent)
+        {
+            _tray.ShowBalloonTip(
+                8000,
+                "Gaggle",
+                $"{AppInfo.Name} {release.Version} is available. Open the tray menu to install it.",
+                ToolTipIcon.Info);
+
+            return;
+        }
+
+        ShowUpdate();
+    }
+
+    private void ShowUpdate()
+    {
+        ReleaseInfo? release = _availableUpdate;
+
+        if (release is null)
+        {
+            return;
+        }
+
+        // A release with no package or no published checksum, and an install folder that
+        // cannot be written to, both come to the same thing: we can point at it, but we
+        // cannot replace ourselves with it.
+        bool inPlace = release.IsInstallable && UpdateInstaller.CanInstallInPlace();
+
+        using var form = new UpdateForm(release, inPlace);
+
+        if (form.ShowDialog() != DialogResult.OK)
+        {
+            return;
+        }
+
+        switch (form.Choice)
+        {
+            case UpdateChoice.Install:
+                _ = InstallUpdateAsync(release);
+                break;
+
+            case UpdateChoice.Skip:
+                _config.SkippedVersion = release.Version;
+                _config.Save();
+                _availableUpdate = null;
+                _updateItem.Text = CheckForUpdatesText;
+                break;
+
+            case UpdateChoice.OpenPage:
+                Open(GitHubReleases.ReleasesPageUrl);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Downloads and stages the update, then exits so the swap script can take over.
+    /// Shaped like <see cref="DownloadModelAsync"/> deliberately: same guard, same
+    /// progress, same icon, so the two cannot run over each other.
+    /// </summary>
+    private async Task InstallUpdateAsync(ReleaseInfo release)
+    {
+        if (_downloading)
+        {
+            ShowStatus("A download is already running.", isError: true);
+            return;
+        }
+
+        // Restarting out from under a recording or an unsent review message would throw
+        // it away, and the user would have no idea why.
+        if (_busy || _recorder.IsRecording || _pendingMessage is not null)
+        {
+            ShowStatus("Finish the current message before updating.", isError: true);
+            return;
+        }
+
+        // Constructed on the UI thread, so its callbacks arrive there too.
+        var progress = new Progress<DownloadProgress>(report =>
+        {
+            string text = $"Downloading {release.Version} — {report.Describe()}";
+            _overlay.ShowStatus(text);
+            _tray.Text = Truncate($"Gaggle — {text}", TrayTextLimit);
+        });
+
+        _downloading = true;
+        _busy = true;
+        _statusTimeout.Stop();
+        _tray.Icon = TrayIcons.Create(TrayIcons.Working);
+
+        try
+        {
+            await UpdateInstaller.InstallAsync(release, progress);
+        }
+        catch (Exception ex)
+        {
+            _overlay.HideOverlay();
+            MessageBox.Show($"Update failed: {ex.Message}", "Gaggle", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+            _downloading = false;
+            _busy = false;
+            RefreshStatus();
+            return;
+        }
+
+        // The swap script is now waiting on this process to exit before it can replace
+        // Gaggle.exe, so nothing is put back on the way out.
+        _overlay.ShowStatus("Restarting to finish the update…");
+        ExitThread();
+    }
+
+    /// <summary>
+    /// Hands a URL to the shell. A dead link should not take the tray icon down with it.
+    /// </summary>
+    private static void Open(string target)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
+        {
+        }
     }
 
     // ------------------------------------------------------------------ Status
@@ -828,6 +1057,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _controller.Dispose();
             _recordingLimit.Dispose();
             _statusTimeout.Dispose();
+            _updateCheckDelay.Dispose();
             _recorder.Dispose();
             _transcriber?.Dispose();
             _sender.Dispose();
