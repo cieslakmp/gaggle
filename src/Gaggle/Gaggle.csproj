@@ -19,7 +19,11 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Product>Gaggle</Product>
     <Description>Push-to-talk voice chat for Condor Soaring Simulator</Description>
-    <Version>0.5.0</Version>
+    <!-- A placeholder, and deliberately not a real version. The release workflow
+         passes -p:Version=<tag> so a published build is stamped from the tag it was
+         built from and cannot disagree with it. A build from source says 0.0.0, which
+         is true: it is not any release. -->
+    <Version>0.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

@@ -376,18 +376,20 @@ signature exactly matters more than matching .NET naming conventions.
 
 ## Releasing
 
-Bump `<Version>` in `src/Gaggle/Gaggle.csproj`, commit, then tag and push:
+Tag and push. There is nothing to bump first:
 
 ```bash
-git tag -a v0.3.0 -m "Gaggle 0.3.0" && git push --follow-tags origin main
+git tag -a v0.6.0 -m "Gaggle 0.6.0" && git push origin v0.6.0
 ```
 
 The release workflow builds, runs the tests, packages `Gaggle.exe` with its
 `runtimes` folder, and opens a **draft** release using the annotated tag message as
 the notes. Review it on the Releases page and publish when it reads right.
 
-It fails before building if `<Version>` and the tag disagree, so a binary can never
-ship stamped with a version that was never released.
+The version comes from the tag: the workflow passes it to the build and then reads it
+back off the assembly, so a binary cannot ship stamped with a version that was never
+released. `<Version>` in the csproj is a `0.0.0` placeholder, which is what a build
+from source honestly is.
 
 ## Contributing
 

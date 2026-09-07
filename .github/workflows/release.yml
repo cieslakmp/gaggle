@@ -36,33 +36,39 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           Write-Output "Releasing $tag as version $version"
 
-      # A tag that disagrees with the assembly version would ship a binary
-      # stamped with the wrong number, which is invisible until someone reports
-      # a bug against a version that was never built.
-      - name: Check the project version matches the tag
-        shell: pwsh
-        run: |
-          $csproj = Get-Content src/Gaggle/Gaggle.csproj -Raw
-          if ($csproj -notmatch '<Version>([^<]+)</Version>') { throw "No <Version> element in Gaggle.csproj" }
-          $project = $Matches[1]
-          $expected = "${{ steps.version.outputs.version }}"
-          if ($project -ne $expected) {
-            throw "Tag is $expected but Gaggle.csproj says $project. Bump the project version and retag."
-          }
-          Write-Output "Version $project matches the tag"
-
       - name: Restore
         run: dotnet restore
 
+      # The version comes from the tag, not from the csproj, so a release cannot be
+      # stamped with a number that disagrees with the tag it was built from. It also
+      # means a release needs no commit of its own: tag, push, done.
       - name: Build
-        run: dotnet build -c Release --no-restore
+        run: dotnet build -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      # The injection above fails silently: a mistyped property name simply leaves the
+      # csproj placeholder in place, and the zip ships stamped 0.0.0 - no release at
+      # all - with nothing in the log to say so. Read it back off the assembly.
+      - name: Check the build was stamped with the tag version
+        shell: pwsh
+        run: |
+          $expected = "${{ steps.version.outputs.version }}"
+          $dll = "src/Gaggle/bin/Release/net10.0-windows/Gaggle.dll"
+          if (-not (Test-Path $dll)) { throw "Build output missing: $dll" }
+
+          # ProductVersion is the informational version, which the SDK may suffix with
+          # "+<commit>".
+          $stamped = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $dll)).ProductVersion
+          if ($stamped -notmatch "^$([regex]::Escape($expected))(\+|$)") {
+            throw "Tag is $expected but the build is stamped $stamped."
+          }
+          Write-Output "Build stamped $stamped"
 
       # A release must never ship code that fails its own tests.
       - name: Test
         run: dotnet test -c Release --no-build
 
       - name: Publish
-        run: dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish
+        run: dotnet publish src/Gaggle/Gaggle.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:Version=${{ steps.version.outputs.version }} -o publish
 
       - name: Package
         id: package
