@@ -31,9 +31,17 @@ targets and `dotnet test` fails outright.
 
 Tagging `v*` triggers `.github/workflows/release.yml`, which builds, tests, packages
 and opens a draft release. It publishes the zip and a `.sha256` beside it; the in-app
-updater will not install a release that has no checksum. The tag must be annotated — its message becomes the release
-notes — and `<Version>` in the csproj must match the tag, or the workflow fails on
-purpose.
+updater will not install a release that has no checksum. The tag must be annotated — its
+message becomes the release notes.
+
+The tag is also where the version comes from: `release.yml` passes `-p:Version=<tag>` to
+the build and publish, and `<Version>` in the csproj is a `0.0.0` placeholder. So a
+release needs no commit of its own — which is the point, because a version-bump commit on
+`main` fired a second, identical CI run for every release. Nothing enforces the two
+agreeing any more because they cannot disagree, but the injection *is* silent when it
+fails: a mistyped property leaves the placeholder in place and ships a zip stamped 0.0.0.
+The "Check the build was stamped with the tag version" step reads it back off the built
+assembly for that reason. Do not drop it.
 
 ## Invariants
 
