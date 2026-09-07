@@ -188,9 +188,10 @@ feedback helps most.
 - **Anything the review overlay shows that you did not say.** The sanitiser drops known
   Whisper hallucinations, but the list only covers the ones seen so far.
 
-Report through [Issues](https://github.com/cieslakmp/gaggle/issues). Which release you
-are running, your model and language choice, and your `config.json` cover most of what
-is needed.
+Report through [Issues](https://github.com/cieslakmp/gaggle/issues). **About Gaggle**
+in the tray menu has the version, and links to the folder holding your `config.json`
+and speech models — that, plus your model and language choice, covers most of what is
+needed. The version is also in the tray tooltip.
 
 ## Status
 
