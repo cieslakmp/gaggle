@@ -41,6 +41,29 @@ public static class ModelInstaller
         !fileName.EndsWith(".en.bin", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// The English-only build to offer in place of <paramref name="multilingualFile"/>:
+    /// the same tier where one is listed (small -> small.en), otherwise the most
+    /// capable English build there is, so switching to English never quietly drops
+    /// someone from Medium to Tiny.
+    /// </summary>
+    public static ModelChoice CounterpartEnglish(string multilingualFile)
+    {
+        string sameTier = multilingualFile.Replace(".bin", ".en.bin", StringComparison.OrdinalIgnoreCase);
+
+        foreach (ModelChoice choice in Available)
+        {
+            if (!choice.IsMultilingual
+                && string.Equals(choice.FileName, sameTier, StringComparison.OrdinalIgnoreCase))
+            {
+                return choice;
+            }
+        }
+
+        // Available is ordered smallest first, so the last English build is the best.
+        return Available.Last(choice => !choice.IsMultilingual);
+    }
+
+    /// <summary>
     /// Downloads the model to a temporary file and moves it into place once complete,
     /// so an interrupted download never leaves a half-written model that fails to load.
     ///

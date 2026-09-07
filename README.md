@@ -94,36 +94,41 @@ buttons would need DirectInput instead.
 | `MaxRecordingSeconds` | `15` | Recording is abandoned past this |
 | `SilenceThresholdRms` | `0.005` | Below this, audio is never transcribed |
 | `WhisperModelFile` | `ggml-base.en.bin` | Model in `%APPDATA%\Gaggle` |
-| `Language` | `en` | `en`, `pl`, `de`, `es` or `auto`. Set it from the tray |
+| `Language` | `en` | `en` or `auto` from the tray; `pl`/`de`/`es` by hand to pin one |
 | `TranscriptionThreads` | `0` | `0` uses every hardware thread. Lower it if Condor stutters |
 | `FastTranscription` | `true` | Trims Whisper's 30-second window to what you actually said |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
 
 ## Languages
 
-Right-click the tray icon → **Language**. English, Polski, Deutsch and Español are
-offered, plus automatic detection.
+Right-click the tray icon → **Language**. There are two choices, because there are
+only two behaviours:
 
-Everything except English is **translated to English** before it reaches chat. That is
-not a separate translation step — Whisper decodes speech straight into English, so it
-costs no extra model, no extra pass and no network call. It only works in that
-direction: Gaggle can turn Polish speech into English chat, but never the reverse.
+| Choice | What happens | Model |
+|---|---|---|
+| **English** | Transcribed as spoken | A dedicated English build — smaller and faster at English |
+| **Any language → English** | Detected, then translated | A multilingual build |
 
-Any language other than English needs a **multilingual model**. Ask an `.en` model for
-Polish and Whisper quietly ignores the request — no error, no warning — and transcribes
-what it heard phonetically as English, so "Lecę w prawo" arrives as "Les W. Pero W.".
-Gaggle refuses that pairing rather than letting it look broken. Pick **Small
-(multilingual)** or **Medium (multilingual)** under **Speech model**.
+Picking one settles the model too, so the two menus can never disagree. Switching to
+English prefers an English build you already have and offers the same tier if you have
+none; switching to *any language* does the same with the multilingual builds. Declining
+the download leaves the language alone, so nothing breaks.
+
+There is no per-language picker, and that is deliberate. With translation on, Whisper
+decodes Polish, German and Spanish into English through the same path and produces
+near-identical output whichever you name — so a menu of languages would imply a
+decision that is not really being made. If detection ever picks wrong for you, you can
+still pin a language by hand: set `Language` in the config file to `pl`, `de` or `es`.
 
 | Model | Size | Use |
 |---|---|---|
-| Tiny / Base / Small **(English)** | 75 MB – 488 MB | English only, fastest |
-| **Small (multilingual)** | ~488 MB | The realistic floor for Polish, German, Spanish |
+| Tiny / Base / Small **(English)** | 141 MB – 465 MB | The **English** choice |
+| **Small (multilingual)** | ~465 MB | The realistic floor for **any language** |
 | **Medium (multilingual)** | ~1.5 GB | Best accuracy, roughly 3× slower |
 
-Automatic detection is offered but is the least reliable option: Whisper decides from
-the opening moments of the clip, and a two-second radio call does not give it much to
-go on. Picking the language explicitly is worth it if you fly in one language.
+Multilingual costs nothing extra in download size at the same tier: `ggml-base.bin` and
+`ggml-base.en.bin` are both 141 MB. The larger multilingual models are bigger because
+they are bigger models, not because they are multilingual.
 
 ### If transcription is slow
 

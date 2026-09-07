@@ -324,12 +324,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             string raw = await transcriber.TranscribeAsync(audio, options);
 
-            // Non-English speech comes back translated, but a stray untranslated word
-            // would lose its accented letters silently on the way into chat.
+            // Folded unconditionally: InputSender.TypeChar drops characters the layout
+            // cannot produce without an error, and that bites whenever a non-English
+            // word survives — translated or not. It is a no-op on English.
             string? message = MessageSanitiser.Clean(
                 raw,
                 _config.MaxMessageLength,
-                foldToAscii: options.TranslateToEnglish);
+                foldToAscii: true);
 
             if (message is null)
             {
@@ -466,15 +467,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         parent.DropDownItems.Clear();
 
-        foreach (SpokenLanguage language in SpokenLanguage.Available)
+        foreach (SpokenLanguage language in SpokenLanguage.MenuChoices)
         {
-            string label = SpokenLanguage.IsEnglish(language.Code)
-                ? language.Name
-                : $"{language.Name} → English";
-
-            var item = new ToolStripMenuItem(label)
+            var item = new ToolStripMenuItem(language.Name)
             {
-                Checked = string.Equals(_config.Language, language.Code, StringComparison.OrdinalIgnoreCase),
+                // A config pinned to "pl" is still English-in-English-out as far as
+                // this menu is concerned, so it checks the same row as "auto".
+                Checked = SpokenLanguage.IsEnglish(language.Code)
+                    == SpokenLanguage.IsEnglish(_config.Language),
             };
 
             item.Click += async (_, _) => await SelectLanguageAsync(language);
@@ -489,11 +489,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        // Picking a language the current model cannot speak is a dead end, so offer the
-        // way out here rather than setting the language and reporting a problem.
-        if (!SpokenLanguage.IsEnglish(language.Code)
-            && !ModelInstaller.IsMultilingualFile(_config.WhisperModelFile)
-            && !await EnsureMultilingualModelAsync(language))
+        // The language and the model are two halves of one decision, so choosing here
+        // settles both. English wants a dedicated English build — smaller and faster
+        // at English than the multilingual one — and anything else needs multilingual.
+        bool settled = SpokenLanguage.IsEnglish(language.Code)
+            ? await EnsureEnglishModelAsync()
+            : await EnsureMultilingualModelAsync(language);
+
+        if (!settled)
         {
             // Declined. Leaving the language alone keeps the app working, which is
             // what cancelling ought to mean.
@@ -506,6 +509,61 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // No reload needed for the language itself; this re-runs the multilingual check
         // and puts the transcriber back if a previous mismatch had cleared it.
         await LoadModelAsync();
+    }
+
+    /// <summary>
+    /// Points <see cref="AppConfig.WhisperModelFile"/> at an English-only build,
+    /// downloading one if the user agrees. Returns false if they say no.
+    /// </summary>
+    private async Task<bool> EnsureEnglishModelAsync()
+    {
+        if (!ModelInstaller.IsMultilingualFile(_config.WhisperModelFile))
+        {
+            return true;
+        }
+
+        if (_downloading)
+        {
+            ShowStatus("A model download is already running.", isError: true);
+            return false;
+        }
+
+        // Anything already on disk beats a download. Available is ordered smallest
+        // first, so the last installed English build is the most capable one.
+        ModelInstaller.ModelChoice? installed = ModelInstaller.Available.LastOrDefault(
+            choice => !choice.IsMultilingual
+                && File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName)));
+
+        if (installed is not null)
+        {
+            _config.WhisperModelFile = installed.FileName;
+            ShowStatus($"Switched to {installed.Name}.");
+            return true;
+        }
+
+        ModelInstaller.ModelChoice offer = ModelInstaller.CounterpartEnglish(_config.WhisperModelFile);
+
+        DialogResult answer = MessageBox.Show(
+            "English uses a dedicated English speech model, which is smaller and "
+                + "faster at English than the multilingual one."
+                + Environment.NewLine + Environment.NewLine
+                + $"Download {offer.Name} ({offer.Notes}) now?",
+            "Gaggle",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (answer != DialogResult.OK)
+        {
+            return false;
+        }
+
+        if (!await DownloadModelAsync(offer, Path.Combine(AppConfig.DataDirectory, offer.FileName), alreadyConfirmed: true))
+        {
+            return false;
+        }
+
+        _config.WhisperModelFile = offer.FileName;
+        return true;
     }
 
     /// <summary>
@@ -583,6 +641,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         _config.WhisperModelFile = choice.FileName;
+
+        // The two menus are halves of one decision, so picking an English-only build
+        // settles the language rather than leaving behind a pairing that refuses to
+        // load. Between them the menus can no longer produce that state at all; the
+        // check in LoadModelAsync now only catches a hand-edited config.
+        if (!choice.IsMultilingual && !SpokenLanguage.IsEnglish(_config.Language))
+        {
+            _config.Language = SpokenLanguage.EnglishCode;
+            ShowStatus($"{choice.Name} is English only — language set to English.");
+        }
+
         _config.Save();
 
         await LoadModelAsync();

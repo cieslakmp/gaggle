@@ -108,6 +108,15 @@ Language and decoding settings are read fresh for every utterance rather than ba
 into the loaded model, so switching language costs nothing. Only `WhisperModelFile`
 forces a reload.
 
+`Language` and `WhisperModelFile` are two halves of one decision, and both tray menus
+maintain that: choosing English moves to an English build, choosing any-language moves
+to a multilingual one, and picking an English-only model sets the language to English.
+The menus therefore cannot produce the pairing `LoadModelAsync` refuses — that check now
+only catches a hand-edited config. The tray offers two language choices, not five,
+because with translation on `pl`, `de` and `es` all decode through the same path to
+near-identical English; the per-language codes survive in config for pinning one when
+detection picks wrong.
+
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the
 same underlying value.

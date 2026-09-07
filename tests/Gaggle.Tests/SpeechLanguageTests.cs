@@ -96,6 +96,56 @@ public class SpeechLanguageTests
     }
 
     [Fact]
+    public void TheMenuOffersExactlyTheTwoStatesThatExist()
+    {
+        // "pl", "de" and "es" all decode to English and produce near-identical output,
+        // so the menu offers the decision actually being made: English, or anything.
+        Assert.Equal(2, SpokenLanguage.MenuChoices.Count);
+        Assert.Contains(SpokenLanguage.MenuChoices, l => SpokenLanguage.IsEnglish(l.Code));
+        Assert.Contains(SpokenLanguage.MenuChoices, l => SpokenLanguage.IsAuto(l.Code));
+    }
+
+    [Fact]
+    public void EveryMenuChoiceIsAKnownLanguage()
+    {
+        foreach (SpokenLanguage choice in SpokenLanguage.MenuChoices)
+        {
+            Assert.Contains(SpokenLanguage.Available, known => known.Code == choice.Code);
+        }
+    }
+
+    [Theory]
+    [InlineData("ggml-small.bin", "ggml-small.en.bin")]
+    [InlineData("ggml-base.bin", "ggml-base.en.bin")]
+    public void SwitchingToEnglishKeepsTheSameTierWhenThereIsOne(string multilingual, string expected)
+    {
+        Assert.Equal(expected, ModelInstaller.CounterpartEnglish(multilingual).FileName);
+    }
+
+    [Fact]
+    public void SwitchingToEnglishFromATierWithNoEnglishBuildDoesNotDropToTiny()
+    {
+        // Medium has no ".en" counterpart on the menu. Falling back to the smallest
+        // English build would quietly downgrade someone who chose the largest model.
+        ModelInstaller.ModelChoice offer = ModelInstaller.CounterpartEnglish("ggml-medium.bin");
+
+        Assert.False(offer.IsMultilingual);
+        Assert.Equal("ggml-small.en.bin", offer.FileName);
+    }
+
+    [Fact]
+    public void EveryCounterpartIsAnEnglishBuildThatIsOffered()
+    {
+        foreach (ModelInstaller.ModelChoice choice in ModelInstaller.Available)
+        {
+            ModelInstaller.ModelChoice offer = ModelInstaller.CounterpartEnglish(choice.FileName);
+
+            Assert.False(offer.IsMultilingual, $"{choice.FileName} mapped to a multilingual build");
+            Assert.Contains(ModelInstaller.Available, c => c.FileName == offer.FileName);
+        }
+    }
+
+    [Fact]
     public void TheDefaultModelSuitsTheDefaultLanguage()
     {
         var config = new AppConfig();

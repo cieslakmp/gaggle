@@ -18,7 +18,15 @@ public sealed record SpokenLanguage(string Code, string Name)
     /// <summary>The one language that needs no translation.</summary>
     public const string EnglishCode = "en";
 
-    /// <summary>Offered in the tray menu, English first because it is the default.</summary>
+    /// <summary>
+    /// Every code the app understands. Used to name a setting, not to build the menu.
+    ///
+    /// The per-language codes are here for the tail case where detection picks wrong
+    /// and you want to pin the language by hand in config.json. They are deliberately
+    /// off the menu: with translation on, "pl", "de" and "es" all decode to English
+    /// and produce near-identical output, so offering them as a choice implies a
+    /// decision that is not really being made.
+    /// </summary>
     public static readonly IReadOnlyList<SpokenLanguage> Available =
     [
         new(EnglishCode, "English"),
@@ -26,6 +34,17 @@ public sealed record SpokenLanguage(string Code, string Name)
         new("de", "Deutsch"),
         new("es", "Español"),
         new(AutoCode, "Detect automatically"),
+    ];
+
+    /// <summary>
+    /// What the tray actually offers. Two states, because two is what there is:
+    /// English, transcribed by a dedicated English model, or anything at all,
+    /// detected and translated into English by a multilingual one.
+    /// </summary>
+    public static readonly IReadOnlyList<SpokenLanguage> MenuChoices =
+    [
+        new(EnglishCode, "English"),
+        new(AutoCode, "Any language → English"),
     ];
 
     /// <summary>
