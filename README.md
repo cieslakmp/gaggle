@@ -30,6 +30,23 @@ load the speech model.
 Needs Windows 10 or 11, 64-bit, plus room for the speech model it downloads on first
 run: 141 MB for English, or 465 MB if you want it to understand other languages.
 
+### Windows will warn you
+
+Gaggle is not code-signed, so the first launch shows **"Windows protected your PC"**.
+That is SmartScreen reacting to an unknown publisher, not a virus detection. Click
+**More info**, then **Run anyway**.
+
+Windows also stamps anything extracted from a downloaded zip as untrusted, and that
+mark follows the files out of the archive. Clearing it on the zip before extracting
+saves the argument:
+
+```powershell
+Unblock-File .\Gaggle-*-win-x64.zip
+```
+
+A signing certificate would remove the warning, but it is a recurring cost, so for now
+the warning stays.
+
 ## How it works
 
 ```
