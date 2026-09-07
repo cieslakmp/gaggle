@@ -1,0 +1,8 @@
+# Blank issues stay on: a report that does not fit either form is still worth having,
+# and a form that turns someone away costs more than a badly shaped issue.
+blank_issues_enabled: true
+
+contact_links:
+  - name: What is worth reporting
+    url: https://github.com/cieslakmp/gaggle#what-is-worth-reporting
+    about: The behaviour that is guessed rather than measured, and where feedback helps most.

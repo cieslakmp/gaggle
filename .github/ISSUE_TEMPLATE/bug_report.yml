@@ -1,0 +1,59 @@
+name: Bug report
+description: Gaggle did the wrong thing — nothing typed, wrong words, a crash.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gaggle types into chat shared with other pilots, so anything it got wrong in a
+        live race is worth reporting even if it only happened once.
+
+        **Report a bug…** in the tray menu opens this form with the version and setup
+        already filled in.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        Held Caps Lock and said "turning left at the second thermal". The review overlay
+        showed the right words and I pressed Enter, but nothing appeared in Condor's chat.
+    validations:
+      required: true
+
+  - type: textarea
+    id: spoken
+    attributes:
+      label: What you said, and what came out
+      description: >
+        For anything the transcript got wrong. Both halves matter — the sanitiser and
+        the model can only be fixed against a real example.
+      placeholder: |
+        Spoke (Polish): "Lecę w prawo"
+        Overlay showed: "Les W. Pero W."
+
+  - type: input
+    id: version
+    attributes:
+      label: Gaggle version
+      description: In the tray tooltip, and under **About Gaggle**.
+      placeholder: "0.4.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Setup
+      description: Windows version, speech model, language, microphone.
+      render: text
+
+  - type: textarea
+    id: config
+    attributes:
+      label: config.json
+      description: >
+        Optional, and the most useful attachment there is. **About Gaggle** links to the
+        folder holding it. Nothing in it identifies you.
+      render: json

@@ -109,6 +109,7 @@ app and a race starting. The release assets are matched by suffix (`-win-x64.zip
 | `Condor/` | Process/foreground detection and the chat macro |
 | `Update/` | GitHub release lookup, version comparison, the self-replacing install |
 | `Ui/` | Tray icon, state machine, review overlay, settings window |
+| `IssueLink.cs` | Prefilled links to the GitHub issue forms in `.github/ISSUE_TEMPLATE` |
 | `tests/Gaggle.Tests/` | xunit.v3 suite for the hardware-free logic |
 
 `Ui/TrayApplicationContext.cs` owns the state machine and is where the pieces meet:
@@ -140,6 +141,12 @@ A new `AppConfig` property that is not added there is silently dropped by "Reloa
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the
 same underlying value.
+
+`IssueLink` prefills the GitHub issue forms by query parameter, which means the template
+file names and the field ids in `.github/ISSUE_TEMPLATE/*.yml` are a contract with the
+app. GitHub answers an unknown template, or a parameter matching no field id, with an
+ordinary empty form — no error, nothing in the URL to say the prefill was dropped. Rename
+a template or a field id and `IssueLinkTests` is the only thing that will notice.
 
 ## Watch out
 
