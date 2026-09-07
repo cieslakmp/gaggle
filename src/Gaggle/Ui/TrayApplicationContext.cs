@@ -167,6 +167,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add("Reload config", null, (_, _) => ReloadConfig());
 
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add($"About {AppInfo.Name}…", null, (_, _) => ShowAbout());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
         return menu;
@@ -717,6 +718,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private static string Truncate(string text, int maxLength) =>
         text.Length <= maxLength ? text : text[..maxLength];
 
+    private static void ShowAbout()
+    {
+        using var about = new AboutForm();
+        about.ShowDialog();
+    }
+
     private void ShowSettings()
     {
         // ShowDialog keeps pumping messages, so both the keyboard hook and the
@@ -808,7 +815,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             : $"ready — hold {_controller.Binding.Describe()}";
 
         _statusItem.Text = state;
-        _tray.Text = Truncate($"Gaggle — {state}", TrayTextLimit);
+        _tray.Text = Truncate($"{AppInfo.Name} {AppInfo.Version} — {state}", TrayTextLimit);
         _tray.Icon = TrayIcons.Create(ready ? TrayIcons.Ready : TrayIcons.Idle);
     }
 
