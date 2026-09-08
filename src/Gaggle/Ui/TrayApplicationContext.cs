@@ -1,10 +1,12 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Windows.Forms;
 using Gaggle.Audio;
 using Gaggle.Condor;
 using Gaggle.Configuration;
 using Gaggle.Input;
 using Gaggle.Interop;
+using Gaggle.Localisation;
 using Gaggle.Net;
 using Gaggle.Speech;
 using Gaggle.Text;
@@ -25,11 +27,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly AppConfig _config;
     private readonly NotifyIcon _tray;
-    private readonly ContextMenuStrip _menu;
-    private readonly ToolStripMenuItem _statusItem;
-    private readonly ToolStripMenuItem _updateItem;
-    private readonly ToolStripMenuItem _handsFreeItem;
-    private readonly ToolStripMenuItem _cuesItem;
+    // Not readonly, and not built in the constructor: the whole menu is thrown away and
+    // rebuilt when the interface language changes, and a ContextMenuStrip disposes the
+    // items in it. See BuildMenu and RebuildMenu.
+    private ContextMenuStrip _menu;
+    private ToolStripMenuItem _statusItem;
+    private ToolStripMenuItem _updateItem;
+    private ToolStripMenuItem _handsFreeItem;
+    private ToolStripMenuItem _cuesItem;
     private readonly CondorWatcher _watcher;
     private readonly ChatSender _sender;
     private readonly MicrophoneRecorder _recorder = new();
@@ -43,9 +48,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     /// <summary>NotifyIcon.Text throws above this length.</summary>
     private const int TrayTextLimit = 63;
-
-    /// <summary>The update menu item before a release has been found.</summary>
-    private const string CheckForUpdatesText = "Check for updates…";
 
     /// <summary>
     /// How long after startup the background update check runs. Long enough that the
@@ -68,37 +70,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _config = AppConfig.Load();
 
+        // First, and before anything below builds a caption: every string in this class
+        // reads Strings.Current, which starts out English.
+        Strings.Use(_config.UiLanguage);
+
         _watcher = new CondorWatcher(_config.ProcessName);
         _sender = new ChatSender(_watcher);
-
-        _statusItem = new ToolStripMenuItem("Starting…") { Enabled = false };
-
-        _updateItem = new ToolStripMenuItem(CheckForUpdatesText);
-        _updateItem.Click += async (_, _) =>
-        {
-            // Once a release is known, the item is an offer rather than a question, so
-            // clicking it should not go back to GitHub to be told the same thing.
-            if (_availableUpdate is not null)
-            {
-                ShowUpdate();
-                return;
-            }
-
-            await CheckForUpdatesAsync(silent: false);
-        };
-
-        _handsFreeItem = new ToolStripMenuItem("Send without review (hands-free)");
-        _handsFreeItem.Click += (_, _) => ToggleHandsFree();
-
-        _cuesItem = new ToolStripMenuItem("Play audible cues");
-        _cuesItem.Click += (_, _) =>
-        {
-            _config.AudibleFeedback = !_config.AudibleFeedback;
-            _config.Save();
-
-            // Turning them on says so out loud; there is nothing else to look at.
-            Cue(CueTones.PlaySent);
-        };
 
         _menu = BuildMenu();
 
@@ -142,7 +119,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         CueTones.Warm();
 
-        _recorder.Failed += ex => BeginInvokeOnUi(() => UtteranceFailed($"Microphone error: {ex.Message}"));
+        _recorder.Failed += ex => BeginInvokeOnUi(() => UtteranceFailed(Strings.Current.MicrophoneError(ex.Message)));
 
         _controller = new PttController(_hook, _joystick);
         ConfigureInput();
@@ -155,7 +132,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         catch (InvalidOperationException ex)
         {
             MessageBox.Show(
-                ex.Message + "\n\nPush-to-talk will not work. Gaggle will keep running so you can check settings.",
+                Strings.Current.PushToTalkUnavailable(ex.Message),
                 "Gaggle",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -199,9 +176,54 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _overlay.BeginInvoke(action);
     }
 
+    /// <summary>
+    /// Builds the menu, items and captions together.
+    ///
+    /// Called again every time the interface language changes, so nothing here may
+    /// survive across calls. The four items this class keeps a field for are created
+    /// here on purpose: a ContextMenuStrip disposes its items, so one held over from the
+    /// previous menu would be disposed out from under the new one.
+    /// </summary>
+    [MemberNotNull(
+        nameof(_statusItem),
+        nameof(_updateItem),
+        nameof(_handsFreeItem),
+        nameof(_cuesItem))]
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
+
+        _statusItem = new ToolStripMenuItem(Strings.Current.Starting) { Enabled = false };
+
+        _updateItem = new ToolStripMenuItem(Strings.Current.CheckForUpdates);
+        _updateItem.Click += async (_, _) =>
+        {
+            // Once a release is known, the item is an offer rather than a question, so
+            // clicking it should not go back to GitHub to be told the same thing.
+            if (_availableUpdate is not null)
+            {
+                ShowUpdate();
+                return;
+            }
+
+            await CheckForUpdatesAsync(silent: false);
+        };
+
+        _handsFreeItem = new ToolStripMenuItem(Strings.Current.HandsFreeItem);
+        _handsFreeItem.Click += (_, _) => ToggleHandsFree();
+
+        _cuesItem = new ToolStripMenuItem(Strings.Current.AudibleCuesItem);
+        _cuesItem.Click += (_, _) =>
+        {
+            _config.AudibleFeedback = !_config.AudibleFeedback;
+            _config.Save();
+
+            // Turning them on says so out loud; there is nothing else to look at.
+            Cue(CueTones.PlaySent);
+        };
+
+        // A rebuilt menu has to come back saying whatever the old one was saying.
+        RefreshUpdateItem();
 
         // The submenus rebuild their check marks on DropDownOpening; these two are
         // not rebuilt, so they read the config here for the same reason. Setting them
@@ -216,35 +238,73 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
 
-        var microphones = new ToolStripMenuItem("Microphone");
+        var microphones = new ToolStripMenuItem(Strings.Current.Microphone);
         microphones.DropDownOpening += (_, _) => PopulateMicrophones(microphones);
         menu.Items.Add(microphones);
 
-        var models = new ToolStripMenuItem("Speech model");
+        var models = new ToolStripMenuItem(Strings.Current.SpeechModel);
         models.DropDownOpening += (_, _) => PopulateModels(models);
         menu.Items.Add(models);
 
-        var languages = new ToolStripMenuItem("Language");
-        languages.DropDownOpening += (_, _) => PopulateLanguages(languages);
-        menu.Items.Add(languages);
+        // Two language menus now sit next to each other, and they are not the same
+        // decision. This one is what the pilot speaks into the microphone; the next is
+        // what these menus are written in. Calling either of them just "Language" is how
+        // that gets confused.
+        var speech = new ToolStripMenuItem(Strings.Current.SpeechLanguage);
+        speech.DropDownOpening += (_, _) => PopulateLanguages(speech);
+        menu.Items.Add(speech);
+
+        var interfaceLanguage = new ToolStripMenuItem(Strings.Current.AppLanguage);
+        interfaceLanguage.DropDownOpening += (_, _) => PopulateAppLanguages(interfaceLanguage);
+        menu.Items.Add(interfaceLanguage);
 
         menu.Items.Add(new ToolStripSeparator());
 
-        menu.Items.Add("Push-to-talk…", null, (_, _) => ShowSettings());
+        menu.Items.Add(Strings.Current.PushToTalkSettings, null, (_, _) => ShowSettings());
         menu.Items.Add(_handsFreeItem);
         menu.Items.Add(_cuesItem);
-        menu.Items.Add("Open config file", null, (_, _) => OpenConfig());
-        menu.Items.Add("Reload config", null, (_, _) => ReloadConfig());
+        menu.Items.Add(Strings.Current.OpenConfigFile, null, (_, _) => OpenConfig());
+        menu.Items.Add(Strings.Current.ReloadConfigItem, null, (_, _) => ReloadConfig());
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_updateItem);
-        menu.Items.Add("Report a bug…", null, (_, _) => ReportIssue(IssueLink.BugTemplate));
-        menu.Items.Add("Suggest an idea…", null, (_, _) => ReportIssue(IssueLink.SuggestionTemplate));
-        menu.Items.Add($"About {AppInfo.Name}…", null, (_, _) => ShowAbout());
-        menu.Items.Add("Exit", null, (_, _) => ExitThread());
+        menu.Items.Add(
+            Strings.Current.ReportABug, null, (_, _) => ReportIssue(IssueLink.BugTemplate));
+        menu.Items.Add(
+            Strings.Current.SuggestAnIdea, null, (_, _) => ReportIssue(IssueLink.SuggestionTemplate));
+        menu.Items.Add(Strings.Current.AboutItem(AppInfo.Name), null, (_, _) => ShowAbout());
+        menu.Items.Add(Strings.Current.Exit, null, (_, _) => ExitThread());
 
         return menu;
     }
+
+    /// <summary>
+    /// Throws the menu away and builds it again in the current language.
+    ///
+    /// Deferred to the next message on purpose. Both callers are reached from a menu
+    /// item's Click handler, and disposing a drop-down from inside its own handler pulls
+    /// the control out from under the code still dispatching that click.
+    /// </summary>
+    private void RebuildMenu() => BeginInvokeOnUi(() =>
+    {
+        Strings.Use(_config.UiLanguage);
+
+        ContextMenuStrip stale = _menu;
+        _menu = BuildMenu();
+        _tray.ContextMenuStrip = _menu;
+        stale.Dispose();
+
+        RefreshStatus();
+    });
+
+    /// <summary>
+    /// The update item is a question before a release has been found and an offer after,
+    /// and a rebuilt menu has to come back saying the right one.
+    /// </summary>
+    private void RefreshUpdateItem() =>
+        _updateItem.Text = _availableUpdate is null
+            ? Strings.Current.CheckForUpdates
+            : Strings.Current.UpdateTo(_availableUpdate.Version);
 
     // -------------------------------------------------------------- Model load
 
@@ -259,7 +319,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _tray.ShowBalloonTip(
                 8000,
                 "Gaggle",
-                "No speech model installed yet. Pick one from the tray menu under Speech model.",
+                Strings.Current.NoModelInstalledBalloon,
                 ToolTipIcon.Info);
             return;
         }
@@ -278,8 +338,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _tray.ShowBalloonTip(
                 8000,
                 "Gaggle",
-                $"{SpokenLanguage.Describe(_config.Language)} needs a multilingual model. "
-                    + "Pick Small or Medium (multilingual) under Speech model.",
+                Strings.Current.NeedsMultilingualModelBalloon(
+                    Strings.Current.SpokenLanguageName(_config.Language)),
                 ToolTipIcon.Warning);
             return;
         }
@@ -297,7 +357,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            _tray.ShowBalloonTip(8000, "Gaggle", $"Could not load the speech model: {ex.Message}", ToolTipIcon.Error);
+            _tray.ShowBalloonTip(8000, "Gaggle", Strings.Current.CouldNotLoadModel(ex.Message), ToolTipIcon.Error);
         }
 
         RefreshStatus();
@@ -314,13 +374,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (_transcriber is null)
         {
-            UtteranceFailed("No speech model loaded — see the tray menu.");
+            UtteranceFailed(Strings.Current.NoModelLoadedSeeMenu);
             return;
         }
 
         if (!_watcher.IsRunning)
         {
-            UtteranceFailed($"{_config.ProcessName} is not running.");
+            UtteranceFailed(Strings.Current.ProcessNotRunning(_config.ProcessName));
             return;
         }
 
@@ -332,7 +392,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            UtteranceFailed($"Microphone unavailable: {ex.Message}");
+            UtteranceFailed(Strings.Current.MicrophoneUnavailable(ex.Message));
             return;
         }
 
@@ -345,7 +405,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _tray.Icon = TrayIcons.Create(TrayIcons.Recording);
         Cue(CueTones.PlayStarted);
-        _overlay.ShowStatus("Listening…");
+        _overlay.ShowStatus(Strings.Current.Listening);
         _statusTimeout.Stop();
     }
 
@@ -363,12 +423,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (audio is null)
         {
-            UtteranceFailed("Nothing recorded.");
+            UtteranceFailed(Strings.Current.NothingRecorded);
             RefreshStatus();
             return;
         }
 
-        _overlay.ShowStatus("Transcribing…");
+        _overlay.ShowStatus(Strings.Current.Transcribing);
         _ = TranscribeAsync(audio);
     }
 
@@ -383,14 +443,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (level < _config.SilenceThresholdRms)
             {
                 // Fed silence, Whisper invents plausible sentences. Never transcribe it.
-                UtteranceFailed("Too quiet — nothing sent.");
+                UtteranceFailed(Strings.Current.TooQuiet);
                 return;
             }
 
             WhisperTranscriber? transcriber = _transcriber;
             if (transcriber is null)
             {
-                UtteranceFailed("No speech model loaded.");
+                UtteranceFailed(Strings.Current.NoModelLoaded);
                 return;
             }
 
@@ -415,7 +475,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             if (message is null)
             {
-                UtteranceFailed("Did not catch that.");
+                UtteranceFailed(Strings.Current.DidNotCatchThat);
                 return;
             }
 
@@ -433,7 +493,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            UtteranceFailed($"Transcription failed: {ex.Message}");
+            UtteranceFailed(Strings.Current.TranscriptionFailed(ex.Message));
         }
         finally
         {
@@ -455,7 +515,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        _overlay.ShowStatus("Sending…");
+        _overlay.ShowStatus(Strings.Current.Sending);
         _ = SendAsync(message);
     }
 
@@ -508,7 +568,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (devices.Count == 0)
         {
-            parent.DropDownItems.Add(new ToolStripMenuItem("No microphones found") { Enabled = false });
+            parent.DropDownItems.Add(new ToolStripMenuItem(Strings.Current.NoMicrophonesFound) { Enabled = false });
             return;
         }
 
@@ -540,7 +600,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             bool installed = File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName));
 
-            var item = new ToolStripMenuItem($"{choice.Name} — {choice.Notes}")
+            string caption =
+                $"{Strings.Current.ModelName(choice.FileName)} — {Strings.Current.ModelNotes(choice.FileName)}";
+
+            var item = new ToolStripMenuItem(caption)
             {
                 Checked = _config.WhisperModelFile == choice.FileName,
             };
@@ -561,7 +624,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         foreach (SpokenLanguage language in SpokenLanguage.MenuChoices)
         {
-            var item = new ToolStripMenuItem(language.Name)
+            var item = new ToolStripMenuItem(Strings.Current.SpokenLanguageName(language.Code))
             {
                 // A config pinned to "pl" is still English-in-English-out as far as
                 // this menu is concerned, so it checks the same row as "auto".
@@ -572,6 +635,39 @@ internal sealed class TrayApplicationContext : ApplicationContext
             item.Click += async (_, _) => await SelectLanguageAsync(language);
             parent.DropDownItems.Add(item);
         }
+    }
+
+    /// <summary>
+    /// The language the menus themselves are written in. Nothing here touches speech, so
+    /// there is no model to check and no reload to do — only the menu to redraw.
+    /// </summary>
+    private void PopulateAppLanguages(ToolStripMenuItem parent)
+    {
+        parent.DropDownItems.Clear();
+
+        foreach (UiLanguage language in Enum.GetValues<UiLanguage>())
+        {
+            var item = new ToolStripMenuItem(Strings.NameOf(language))
+            {
+                Checked = _config.UiLanguage == language,
+            };
+
+            item.Click += (_, _) => SelectAppLanguage(language);
+            parent.DropDownItems.Add(item);
+        }
+    }
+
+    private void SelectAppLanguage(UiLanguage language)
+    {
+        if (_config.UiLanguage == language)
+        {
+            return;
+        }
+
+        _config.UiLanguage = language;
+        _config.Save();
+
+        RebuildMenu();
     }
 
     private async Task SelectLanguageAsync(SpokenLanguage language)
@@ -616,7 +712,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         if (_downloading)
         {
-            ShowStatus("A model download is already running.", isError: true);
+            ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
             return false;
         }
 
@@ -629,17 +725,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (installed is not null)
         {
             _config.WhisperModelFile = installed.FileName;
-            ShowStatus($"Switched to {installed.Name}.");
+            ShowStatus(Strings.Current.SwitchedToModel(Strings.Current.ModelName(installed.FileName)));
             return true;
         }
 
         ModelInstaller.ModelChoice offer = ModelInstaller.CounterpartEnglish(_config.WhisperModelFile);
 
         DialogResult answer = MessageBox.Show(
-            "English uses a dedicated English speech model, which is smaller and "
-                + "faster at English than the multilingual one."
-                + Environment.NewLine + Environment.NewLine
-                + $"Download {offer.Name} ({offer.Notes}) now?",
+            Strings.Current.EnglishModelOffer(
+                Strings.Current.ModelName(offer.FileName),
+                Strings.Current.ModelNotes(offer.FileName)),
             "Gaggle",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Question);
@@ -667,7 +762,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_downloading)
         {
-            ShowStatus("A model download is already running.", isError: true);
+            ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
             return false;
         }
 
@@ -680,7 +775,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (installed is not null)
         {
             _config.WhisperModelFile = installed.FileName;
-            ShowStatus($"Switched to {installed.Name} for {language.Name}.");
+            ShowStatus(Strings.Current.SwitchedToModelFor(
+                Strings.Current.ModelName(installed.FileName),
+                Strings.Current.SpokenLanguageName(language.Code)));
             return true;
         }
 
@@ -693,10 +790,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         DialogResult answer = MessageBox.Show(
-            $"{language.Name} needs a multilingual speech model. The English-only models "
-                + "cannot transcribe it — Whisper ignores the request and writes down what "
-                + "it heard as English instead." + Environment.NewLine + Environment.NewLine
-                + $"Download {offer.Name} ({offer.Notes}) now?",
+            Strings.Current.MultilingualModelOffer(
+                Strings.Current.SpokenLanguageName(language.Code),
+                Strings.Current.ModelName(offer.FileName),
+                Strings.Current.ModelNotes(offer.FileName)),
             "Gaggle",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Question);
@@ -721,7 +818,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_downloading)
         {
-            ShowStatus("A model download is already running.", isError: true);
+            ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
             return;
         }
 
@@ -741,7 +838,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (!choice.IsMultilingual && !SpokenLanguage.IsEnglish(_config.Language))
         {
             _config.Language = SpokenLanguage.EnglishCode;
-            ShowStatus($"{choice.Name} is English only — language set to English.");
+            ShowStatus(Strings.Current.ModelIsEnglishOnly(Strings.Current.ModelName(choice.FileName)));
         }
 
         _config.Save();
@@ -761,7 +858,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (!alreadyConfirmed)
         {
             DialogResult answer = MessageBox.Show(
-                $"Download {choice.Name} ({choice.Notes}) from Hugging Face?",
+                Strings.Current.DownloadModelQuestion(
+                    Strings.Current.ModelName(choice.FileName),
+                    Strings.Current.ModelNotes(choice.FileName)),
                 "Gaggle",
                 MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Question);
@@ -775,7 +874,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Constructed on the UI thread, so its callbacks arrive there too.
         var progress = new Progress<DownloadProgress>(report =>
         {
-            string text = $"Downloading {choice.Name} — {report.Describe()}";
+            string text = Strings.Current.DownloadingModel(
+                Strings.Current.ModelName(choice.FileName),
+                report.Describe());
+
             _overlay.ShowStatus(text);
             _tray.Text = Truncate($"Gaggle — {text}", TrayTextLimit);
         });
@@ -788,13 +890,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         try
         {
             await ModelInstaller.DownloadAsync(choice.FileName, destination, progress);
-            ShowStatus($"{choice.Name} installed.");
+            ShowStatus(Strings.Current.ModelInstalled(Strings.Current.ModelName(choice.FileName)));
             return true;
         }
         catch (Exception ex)
         {
             _overlay.HideOverlay();
-            MessageBox.Show($"Download failed: {ex.Message}", "Gaggle", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(
+                Strings.Current.DownloadFailed(ex.Message),
+                "Gaggle",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
             return false;
         }
         finally
@@ -903,14 +1009,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (_config.ReviewBeforeSending)
         {
             DialogResult answer = MessageBox.Show(
-                "Hands-free sends every transcript straight to chat, mishearings included, "
-                    + "with no chance to read it first."
-                    + Environment.NewLine + Environment.NewLine
-                    + "It exists for VR, where the review overlay cannot be seen or answered. "
-                    + "On a monitor you are giving up the only human check on what other "
-                    + "pilots receive."
-                    + Environment.NewLine + Environment.NewLine
-                    + "Turn it on?",
+                Strings.Current.HandsFreeWarning,
                 "Gaggle",
                 MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Warning);
@@ -967,6 +1066,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _config.CheckForUpdates = reloaded.CheckForUpdates;
         _config.LastUpdateCheckUtc = reloaded.LastUpdateCheckUtc;
         _config.SkippedVersion = reloaded.SkippedVersion;
+        _config.UiLanguage = reloaded.UiLanguage;
 
         _config.PushToTalk = reloaded.PushToTalk;
 
@@ -975,6 +1075,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _controller.Binding = _config.PushToTalk ?? PttBinding.FromKey(_config.TalkKey);
 
         _watcher.ProcessName = _config.ProcessName;
+
+        // Rebuilt unconditionally rather than only when UiLanguage changed: the menu is
+        // cheap, and this is the one path where a hand-edited file can have moved
+        // anything the captions are built from.
+        RebuildMenu();
 
         RefreshStatus();
         _ = LoadModelAsync();
@@ -1009,7 +1114,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (!silent)
             {
                 MessageBox.Show(
-                    "Could not reach GitHub to check for updates.",
+                    Strings.Current.CouldNotReachGitHub,
                     "Gaggle",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -1023,7 +1128,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (!silent)
             {
                 MessageBox.Show(
-                    $"{AppInfo.Name} {AppInfo.Version} is the latest version.",
+                    Strings.Current.AlreadyLatest(AppInfo.Name, AppInfo.Version),
                     "Gaggle",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
@@ -1036,14 +1141,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         // The balloon tip is gone in seconds; the menu item is how someone finds this
         // again an hour later.
-        _updateItem.Text = $"Update to {release.Version}…";
+        RefreshUpdateItem();
 
         if (silent)
         {
             _tray.ShowBalloonTip(
                 8000,
                 "Gaggle",
-                $"{AppInfo.Name} {release.Version} is available. Open the tray menu to install it.",
+                Strings.Current.UpdateAvailableBalloon(AppInfo.Name, release.Version),
                 ToolTipIcon.Info);
 
             return;
@@ -1083,7 +1188,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _config.SkippedVersion = release.Version;
                 _config.Save();
                 _availableUpdate = null;
-                _updateItem.Text = CheckForUpdatesText;
+                RefreshUpdateItem();
                 break;
 
             case UpdateChoice.OpenPage:
@@ -1104,7 +1209,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_downloading)
         {
-            ShowStatus("A download is already running.", isError: true);
+            ShowStatus(Strings.Current.DownloadInProgress, isError: true);
             return;
         }
 
@@ -1112,14 +1217,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // it away, and the user would have no idea why.
         if (_busy || _recorder.IsRecording || _pendingMessage is not null)
         {
-            ShowStatus("Finish the current message before updating.", isError: true);
+            ShowStatus(Strings.Current.FinishMessageBeforeUpdating, isError: true);
             return;
         }
 
         // Constructed on the UI thread, so its callbacks arrive there too.
         var progress = new Progress<DownloadProgress>(report =>
         {
-            string text = $"Downloading {release.Version} — {report.Describe()}";
+            string text = Strings.Current.DownloadingUpdate(release.Version, report.Describe());
             _overlay.ShowStatus(text);
             _tray.Text = Truncate($"Gaggle — {text}", TrayTextLimit);
         });
@@ -1136,7 +1241,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _overlay.HideOverlay();
-            MessageBox.Show($"Update failed: {ex.Message}", "Gaggle", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(
+                Strings.Current.UpdateFailed(ex.Message),
+                "Gaggle",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
 
             _downloading = false;
             _busy = false;
@@ -1146,7 +1255,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         // The swap script is now waiting on this process to exit before it can replace
         // Gaggle.exe, so nothing is put back on the way out.
-        _overlay.ShowStatus("Restarting to finish the update…");
+        _overlay.ShowStatus(Strings.Current.RestartingToFinishUpdate);
         ExitThread();
     }
 
@@ -1208,11 +1317,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         bool ready = _watcher.IsRunning && _transcriber is not null && _hook.IsInstalled;
 
-        string state = !_hook.IsInstalled ? "keyboard hook not installed"
-            : _needsMultilingualModel ? $"{SpokenLanguage.Describe(_config.Language)} needs a multilingual model"
-            : _transcriber is null ? "no speech model"
-            : !_watcher.IsRunning ? $"waiting for {_config.ProcessName}"
-            : $"ready — hold {_controller.Binding.Describe()}";
+        string state = !_hook.IsInstalled ? Strings.Current.StatusHookNotInstalled
+            : _needsMultilingualModel ? Strings.Current.StatusNeedsMultilingualModel(
+                Strings.Current.SpokenLanguageName(_config.Language))
+            : _transcriber is null ? Strings.Current.StatusNoSpeechModel
+            : !_watcher.IsRunning ? Strings.Current.StatusWaitingFor(_config.ProcessName)
+            : Strings.Current.StatusReady(_controller.Binding.Describe());
 
         _statusItem.Text = state;
         _tray.Text = Truncate($"{AppInfo.Name} {AppInfo.Version} — {state}", TrayTextLimit);

@@ -1,5 +1,6 @@
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using Gaggle.Localisation;
 
 namespace Gaggle.Ui;
 
@@ -70,7 +71,7 @@ internal sealed class ReviewOverlay : Form
     {
         _transcript.ForeColor = Color.White;
         _transcript.Text = text;
-        _hint.Text = $"{confirmKey} to send    ·    {cancelKey} to discard";
+        _hint.Text = Strings.Current.ReviewHint($"{confirmKey}", $"{cancelKey}");
 
         PositionAboveTaskbar();
         Show();

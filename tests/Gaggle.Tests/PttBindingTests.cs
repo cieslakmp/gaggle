@@ -5,6 +5,11 @@ using Gaggle.Input;
 
 namespace Gaggle.Tests;
 
+/// <summary>
+/// Describe() reads the localised table, so these assert the English wording. Nothing
+/// here calls Strings.Use: Strings.Current starts out English and is global, and xunit
+/// runs test classes in parallel, so a test that switched it would reach the others.
+/// </summary>
 public class PttBindingTests
 {
     private static readonly JsonSerializerOptions Options = new()

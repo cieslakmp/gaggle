@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using Gaggle.Localisation;
 
 namespace Gaggle.Interop;
 
@@ -70,7 +71,7 @@ internal sealed class PushToTalkHook : IDisposable
         if (_hook == IntPtr.Zero)
         {
             throw new InvalidOperationException(
-                $"Could not install the keyboard hook (Win32 error {Marshal.GetLastWin32Error()}).");
+                Strings.Current.KeyboardHookFailed(Marshal.GetLastWin32Error()));
         }
     }
 

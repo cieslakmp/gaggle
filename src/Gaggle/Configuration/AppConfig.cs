@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Forms;
 using Gaggle.Input;
+using Gaggle.Localisation;
 using Gaggle.Speech;
 
 namespace Gaggle.Configuration;
@@ -130,6 +131,21 @@ public sealed class AppConfig
 
     /// <summary>Longest message typed into chat. Verify against Condor and adjust.</summary>
     public int MaxMessageLength { get; set; } = 120;
+
+    // --------------------------------------------------------------- Interface
+
+    /// <summary>
+    /// The language of Gaggle's own menus and dialogs. Nothing to do with
+    /// <see cref="Language"/>, which is what the pilot speaks into the microphone: the
+    /// interface can be Polish while the speech model stays English-only, and for a
+    /// pilot who calls in English that is the faster pairing.
+    ///
+    /// The default is the Windows display language, so a first run on Polish Windows
+    /// does not have to be translated into Polish through an English menu. A config
+    /// written before this setting existed has no such key, so it takes the same guess
+    /// on the next launch — one menu click to undo, and written back on the way out.
+    /// </summary>
+    public UiLanguage UiLanguage { get; set; } = Strings.FromSystem();
 
     // ----------------------------------------------------------------- Updates
 

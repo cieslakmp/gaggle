@@ -146,7 +146,10 @@ dotnet_diagnostic.CA1416.severity = none    # Platform compatibility
 # around transcription and device access are the intended behaviour.
 dotnet_diagnostic.CA1031.severity = none    # Do not catch general exception types
 
-# Nothing here is localised, and it is not going to be.
+# The interface is translated, but not by these rules. Every user-facing string lives in
+# src/Gaggle/Localisation as a literal pair, chosen in code - there is no ResourceManager
+# for CA1303 to point at. The formatting rules are off because none of this text is
+# culture-sensitive: the only numbers in it are megabytes and a percentage.
 dotnet_diagnostic.CA1303.severity = none    # Do not pass literals as localised parameters
 dotnet_diagnostic.CA1304.severity = none    # Specify CultureInfo
 dotnet_diagnostic.CA1305.severity = none    # Specify IFormatProvider
