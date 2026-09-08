@@ -100,6 +100,11 @@ Gaggle lives in the notification area — there is no main window.
 5. Start Condor. The tray icon turns blue when everything is ready.
 6. Hold your push-to-talk control, speak, release.
 
+Change your mind mid-sentence? **Keep holding.** Past the recording limit — 15 seconds
+by default, 10 hands-free — the clip is thrown away instead of transcribed, and you get
+the dropped tone. It is the only way to take a message back in VR, where the review
+overlay cannot be seen.
+
 ## Push-to-talk binding
 
 Right-click the tray icon → **Push-to-talk…**, press **Change**, then press the key or
@@ -130,9 +135,9 @@ What changes when it is on:
   hallucination filter are all that stand between Whisper and a live race chat. They
   catch the common cases and are not a substitute for you.
 - **Recordings are cut shorter** — `HandsFreeMaxRecordingSeconds`, 10 by default rather
-  than 15. Reaching the limit still sends what was captured, so the limit is what bounds
-  how much unattended speech one held button can put on the air. It bounds it once: a
-  stuck button gives one recording, not one every ten seconds.
+  than 15. Reaching the limit throws the recording away, so holding on is how you take a
+  message back — the only way there is, with no overlay to answer. It ends once: a stuck
+  button gives one abandoned recording, not one every ten seconds.
 - The rate limit still applies, unchanged.
 
 Turn on **Play audible cues** with it. Every other signal Gaggle has — the overlay, the
@@ -155,11 +160,11 @@ mode too.
 | `ConfirmKey` / `CancelKey` | `Return` / `Escape` | Only active while a review is open |
 | `ReviewBeforeSending` | `true` | `false` is hands-free — see [Hands-free](#hands-free-vr) |
 | `AudibleFeedback` | `false` | Play a tone when recording starts, sends, or is dropped |
-| `HandsFreeMaxRecordingSeconds` | `10` | Recording limit while hands-free, shorter than the one above |
+| `HandsFreeMaxRecordingSeconds` | `10` | Hold this long to cancel while hands-free, shorter than the one above |
 | `KeyDelayMs` | `30` | Gap between injected keystrokes |
 | `ChatOpenDelayMs` | `200` | Wait for the chat prompt to appear |
 | `MinSecondsBetweenMessages` | `3` | Rate limit |
-| `MaxRecordingSeconds` | `15` | Recording is abandoned past this |
+| `MaxRecordingSeconds` | `15` | Hold this long and the recording is thrown away |
 | `SilenceThresholdRms` | `0.005` | Below this, audio is never transcribed |
 | `WhisperModelFile` | `ggml-base.en.bin` | Model in `%APPDATA%\Gaggle` |
 | `Language` | `en` | `en` or `auto` from the tray; `pl`/`de`/`es` by hand to pin one |
