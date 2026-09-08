@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 using Gaggle.Configuration;
+using Gaggle.Localisation;
 using Gaggle.Net;
 
 namespace Gaggle.Update;
@@ -123,14 +124,12 @@ public static class UpdateInstaller
 
         if (installDirectory is null)
         {
-            throw new InvalidOperationException(
-                "This copy of Gaggle is not a normal install, so it cannot update itself.");
+            throw new InvalidOperationException(Strings.Current.NotANormalInstall);
         }
 
         if (release.PackageUrl is null || release.ChecksumUrl is null)
         {
-            throw new InvalidOperationException(
-                "That release does not publish a verifiable Windows package.");
+            throw new InvalidOperationException(Strings.Current.NoVerifiablePackage);
         }
 
         Directory.CreateDirectory(UpdatesDirectory);
@@ -183,20 +182,19 @@ public static class UpdateInstaller
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            throw new InvalidOperationException("Could not fetch the checksum for the update.", ex);
+            throw new InvalidOperationException(Strings.Current.CouldNotFetchChecksum, ex);
         }
 
         if (expected is null)
         {
-            throw new InvalidOperationException("The published checksum could not be read.");
+            throw new InvalidOperationException(Strings.Current.ChecksumUnreadable);
         }
 
         string actual = await FileDownloader.ComputeSha256Async(packagePath, cancellationToken);
 
         if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException(
-                "The download did not match its published checksum, so it was discarded.");
+            throw new InvalidOperationException(Strings.Current.ChecksumMismatch);
         }
     }
 
@@ -215,8 +213,7 @@ public static class UpdateInstaller
         {
             Directory.Delete(StagingDirectory, recursive: true);
 
-            throw new InvalidOperationException(
-                "The update package is missing files Gaggle needs, so it was not installed.");
+            throw new InvalidOperationException(Strings.Current.PackageMissingFiles);
         }
 
         // The zip is only a delivery format, and keeping it costs ~80 MB per update.
@@ -248,7 +245,7 @@ public static class UpdateInstaller
 
         if (process is null)
         {
-            throw new InvalidOperationException("Could not start the updater.");
+            throw new InvalidOperationException(Strings.Current.CouldNotStartUpdater);
         }
     }
 

@@ -1,4 +1,6 @@
 using System.Windows.Forms;
+using Gaggle.Configuration;
+using Gaggle.Localisation;
 using Gaggle.Ui;
 
 namespace Gaggle;
@@ -16,8 +18,13 @@ internal static class Program
 
         if (!isFirstInstance)
         {
+            // TrayApplicationContext is what normally picks the interface language, and
+            // this path never reaches it. The config is certainly on disk: the instance
+            // this one is losing to wrote it.
+            Strings.Use(AppConfig.Load().UiLanguage);
+
             MessageBox.Show(
-                "Gaggle is already running — look for it in the notification area.",
+                Strings.Current.AlreadyRunning,
                 "Gaggle",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);

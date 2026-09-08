@@ -3,6 +3,10 @@ using Gaggle.Speech;
 
 namespace Gaggle.Tests;
 
+/// <summary>
+/// Describe() reads the localised table for the word between the two sizes, so these
+/// assert the English wording. See the note on <see cref="PttBindingTests"/>.
+/// </summary>
 public class DownloadProgressTests
 {
     [Fact]

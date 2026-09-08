@@ -1,6 +1,8 @@
 using System.Windows.Forms;
 using Gaggle.Configuration;
 using Gaggle.Input;
+using Gaggle.Localisation;
+using Gaggle.Speech;
 
 namespace Gaggle.Tests;
 
@@ -128,6 +130,56 @@ public class AppConfigTests : IDisposable
         Assert.Equal(PttSource.Joystick, reloaded.PushToTalk!.Source);
         Assert.Equal(2, reloaded.PushToTalk.JoystickId);
         Assert.Equal(9, reloaded.PushToTalk.Button);
+    }
+
+    /// <summary>
+    /// UiLanguage is a new key, and the way a new key goes wrong is by being dropped:
+    /// it has to serialise by name like the rest and come back as what was written.
+    /// </summary>
+    [Fact]
+    public void TheInterfaceLanguageSurvivesJsonRoundTrip()
+    {
+        AppConfig original = AppConfig.LoadFrom(_path);
+
+        original.UiLanguage = UiLanguage.Polish;
+        original.SaveTo(_path);
+
+        Assert.Contains("\"UiLanguage\": \"Polish\"", File.ReadAllText(_path), StringComparison.Ordinal);
+        Assert.Equal(UiLanguage.Polish, AppConfig.LoadFrom(_path).UiLanguage);
+    }
+
+    /// <summary>
+    /// A config written before this setting existed has no key for it, so the property
+    /// keeps its initialiser — the Windows display language. That is the intended
+    /// behaviour on an upgrade and not a value read from the file.
+    /// </summary>
+    [Fact]
+    public void AConfigWrittenBeforeTheInterfaceLanguageFallsBackToWindows()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(_path, """{ "ProcessName": "Condor" }""");
+
+        Assert.Equal(Strings.FromSystem(), AppConfig.LoadFrom(_path).UiLanguage);
+    }
+
+    /// <summary>
+    /// The two languages are unrelated settings that both read as "language", so this
+    /// pins the one thing that must never quietly become true: that changing what the
+    /// pilot speaks changed what the menus say, or the other way round.
+    /// </summary>
+    [Fact]
+    public void TheSpokenLanguageAndTheInterfaceLanguageAreIndependent()
+    {
+        AppConfig config = AppConfig.LoadFrom(_path);
+
+        config.UiLanguage = UiLanguage.Polish;
+        config.Language = SpokenLanguage.EnglishCode;
+        config.SaveTo(_path);
+
+        AppConfig reloaded = AppConfig.LoadFrom(_path);
+
+        Assert.Equal(UiLanguage.Polish, reloaded.UiLanguage);
+        Assert.Equal(SpokenLanguage.EnglishCode, reloaded.Language);
     }
 
     [Fact]

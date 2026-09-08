@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows.Forms;
 using Gaggle.Configuration;
+using Gaggle.Localisation;
 
 namespace Gaggle.Ui;
 
@@ -10,86 +11,108 @@ namespace Gaggle.Ui;
 /// The data folder is here rather than only in the README because a bug report is
 /// worth far more with a config.json attached, and this is where someone will look
 /// for it.
+///
+/// Auto-sizing for the reason <see cref="SettingsForm"/> explains: the description and
+/// the folder path are both longer in some languages than in others.
 /// </summary>
 internal sealed class AboutForm : Form
 {
+    private const int ContentWidth = 380;
+
     public AboutForm()
     {
-        Text = $"About {AppInfo.Name}";
+        Text = Strings.Current.AboutTitle(AppInfo.Name);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(400, 252);
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Padding = new Padding(16);
         Font = new Font("Segoe UI", 9f);
 
         var title = new Label
         {
             Text = $"{AppInfo.Name} {AppInfo.Version}",
             Font = new Font("Segoe UI", 14f, FontStyle.Bold),
-            Location = new Point(16, 16),
             AutoSize = true,
+            Margin = new Padding(0),
         };
 
         var description = new Label
         {
             Text = AppInfo.Description,
-            Location = new Point(18, 50),
-            Width = 366,
-            Height = 32,
+            AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
             ForeColor = SystemColors.GrayText,
+            Margin = new Padding(2, 8, 0, 0),
         };
 
         var author = new Label
         {
-            Text = $"by {AppInfo.Author}",
-            Location = new Point(18, 86),
+            Text = Strings.Current.ByAuthor(AppInfo.Author),
             AutoSize = true,
+            Margin = new Padding(2, 12, 0, 0),
         };
 
         var repository = new LinkLabel
         {
             Text = AppInfo.RepositoryUrl,
-            Location = new Point(18, 112),
             AutoSize = true,
+            Margin = new Padding(2, 10, 0, 0),
         };
         repository.LinkClicked += (_, _) => Open(AppInfo.RepositoryUrl);
 
         var report = new LinkLabel
         {
-            Text = "Report a bug or suggest an idea",
-            Location = new Point(18, 132),
+            Text = Strings.Current.ReportBugOrIdea,
             AutoSize = true,
+            Margin = new Padding(2, 4, 0, 0),
         };
         report.LinkClicked += (_, _) => Open(IssueLink.ChooserUrl);
 
         var dataLabel = new Label
         {
-            Text = "Settings and speech models:",
-            Location = new Point(18, 166),
+            Text = Strings.Current.SettingsAndModels,
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
+            Margin = new Padding(2, 18, 0, 0),
         };
 
         var dataFolder = new LinkLabel
         {
             Text = AppConfig.DataDirectory,
-            Location = new Point(18, 186),
-            Width = 366,
-            AutoEllipsis = true,
+            AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
+            Margin = new Padding(2, 4, 0, 0),
         };
         dataFolder.LinkClicked += (_, _) => Open(AppConfig.DataDirectory);
 
         var close = new Button
         {
-            Text = "Close",
+            Text = Strings.Current.Close,
             DialogResult = DialogResult.OK,
-            Location = new Point(300, 214),
-            Width = 84,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(84, 0),
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0, 18, 0, 0),
         };
 
-        Controls.AddRange([title, description, author, repository, report, dataLabel, dataFolder, close]);
+        var layout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            GrowStyle = TableLayoutPanelGrowStyle.AddRows,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+        };
+        layout.Controls.AddRange([
+            title, description, author, repository, report, dataLabel, dataFolder, close,
+        ]);
+
+        Controls.Add(layout);
         AcceptButton = close;
         CancelButton = close;
     }

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using System.Windows.Forms;
+using Gaggle.Localisation;
 
 namespace Gaggle.Input;
 
@@ -66,15 +67,15 @@ public sealed record PttBinding
     public string Describe() => Source switch
     {
         PttSource.Keyboard => DescribeKey(Key),
-        PttSource.Joystick => $"Stick {JoystickId + 1} · button {Button + 1}",
-        _ => "Unbound",
+        PttSource.Joystick => Strings.Current.StickButton(JoystickId + 1, Button + 1),
+        _ => Strings.Current.Unbound,
     };
 
     private static string DescribeKey(Keys key)
     {
         if (key == Keys.None)
         {
-            return "Unbound";
+            return Strings.Current.Unbound;
         }
 
         return FriendlyNames.TryGetValue(key, out string? friendly) ? friendly : key.ToString();

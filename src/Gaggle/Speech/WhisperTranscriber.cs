@@ -1,3 +1,4 @@
+using Gaggle.Localisation;
 using Whisper.net;
 
 namespace Gaggle.Speech;
@@ -22,7 +23,7 @@ public sealed class WhisperTranscriber : IDisposable
         if (!File.Exists(modelPath))
         {
             throw new FileNotFoundException(
-                $"Whisper model not found at {modelPath}. Download one from the tray menu.",
+                Strings.Current.ModelFileNotFound(modelPath),
                 modelPath);
         }
 

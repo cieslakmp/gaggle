@@ -73,6 +73,15 @@ the hook. A joystick button is read by Condor directly from the device, so there
 way to intercept it — the settings window warns about this rather than pretending
 otherwise. Do not add code that claims to suppress a bound button.
 
+**Translations must be compiled into the one assembly.** `release.yml` packages
+`publish/Gaggle.exe` and `publish/runtimes` and nothing else, and `UpdateInstaller`
+validates only those two paths. A satellite `pl\Gaggle.resources.dll` would therefore be
+dropped from every release zip and every in-app update — and a missing satellite does not
+throw, it falls back to the neutral language. That is why `src/Gaggle/Localisation` is a
+C# table of literal pairs rather than a set of `.resx` files, and why nothing here may
+grow a satellite assembly without the packaging step and the updater's asset check
+changing with it.
+
 **A non-English language needs a multilingual model.** Ask a `ggml-*.en.bin` build for
 Polish and whisper.cpp silently *discards* both the language and the translate request:
 no exception, and nothing logged at any level. It transcribes the audio phonetically as
@@ -122,6 +131,7 @@ app and a race starting. The release assets are matched by suffix (`-win-x64.zip
 | `Audio/` | NAudio capture at 16 kHz mono — the format Whisper requires — and the cue tones |
 | `Net/` | The one streaming download loop, shared by models and updates |
 | `Speech/` | Whisper.net wrapper, language list, decoding options, ggml model download |
+| `Localisation/` | Every user-facing string, English and Polish side by side |
 | `Text/` | Transcript sanitising before anything reaches chat |
 | `Condor/` | Process/foreground detection and the chat macro |
 | `Update/` | GitHub release lookup, version comparison, the self-replacing install |
@@ -154,6 +164,27 @@ detection picks wrong.
 
 `ReloadConfig` in `Ui/TrayApplicationContext.cs` copies config fields across one by one.
 A new `AppConfig` property that is not added there is silently dropped by "Reload config".
+
+Every user-facing string goes in `Localisation/Strings.*.cs`, in both languages, reached
+as `Strings.Current.Whatever`. Formatted text is a *method* rather than a format string,
+so a placeholder cannot exist in one language and not the other. `StringsTests` walks the
+table by reflection, so a member written in English and left untranslated fails the build
+rather than quietly showing English to a Polish pilot — which is the whole point, because
+nothing at runtime would ever say so. A third language means one more argument to `Pick`
+and one more `UiLanguage`.
+
+Some text is English on purpose and must stay that way: `IssueLink.DescribeEnvironment`
+(maintainers read those issues), `MessageSanitiser.Hallucinations` (a blocklist of
+Whisper's English output — translating it disables the gate), `PttBinding.FriendlyNames`
+(a Polish keyboard is still labelled "Caps Lock"), and the endonyms in
+`SpokenLanguage.Available`.
+
+`UiLanguage` and `Language` are unrelated settings that both read as "language". The tray
+names them "App language" and "Speech language" for that reason; do not shorten either
+back to "Language". Changing `UiLanguage` rebuilds the whole tray menu, which is why the
+menu's items are created inside `BuildMenu` and why the rebuild is deferred through
+`BeginInvokeOnUi` — a `ContextMenuStrip` disposes its own items, and disposing a drop-down
+from inside its own `Click` handler pulls the control out from under the click.
 
 Config lives in `%APPDATA%\Gaggle\config.json`, written on first run. `Keys` values
 serialise by name, and note that `Keys.Enter` round-trips as `Return` — they are the

@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using Gaggle.Input;
+using Gaggle.Localisation;
 
 namespace Gaggle.Ui;
 
@@ -10,9 +11,17 @@ namespace Gaggle.Ui;
 /// key events, for two reasons: the global hook sees keys the form would never
 /// receive (Caps Lock, media keys), and joystick buttons produce no window messages
 /// at all.
+///
+/// The layout is a single auto-sizing column rather than hand-placed coordinates. Half
+/// the controls here hold two or three sentences of explanation, and a translation runs
+/// longer than the English it replaced — Polish by a fifth or so. Fixed heights turn that
+/// into a clipped sentence, which is the half that mattered.
 /// </summary>
 internal sealed class SettingsForm : Form
 {
+    /// <summary>How wide prose is allowed to run before it wraps.</summary>
+    private const int ContentWidth = 400;
+
     private readonly PttController _controller;
     private readonly TextBox _bindingBox;
     private readonly Button _changeButton;
@@ -31,123 +40,133 @@ internal sealed class SettingsForm : Form
         _controller = controller;
         _binding = current;
 
-        Text = "Gaggle settings";
+        Text = Strings.Current.SettingsTitle;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(420, 486);
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(16);
         Font = new Font("Segoe UI", 9f);
 
-        var title = new Label
-        {
-            Text = "Push-to-talk",
-            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-            Location = new Point(16, 16),
-            AutoSize = true,
-        };
+        Label title = Heading(Strings.Current.PushToTalkHeading, 10f);
 
         _bindingBox = new TextBox
         {
             ReadOnly = true,
-            Location = new Point(16, 44),
             Width = 250,
             TextAlign = HorizontalAlignment.Center,
             Font = new Font("Segoe UI", 10f),
+            Margin = new Padding(0, 0, 10, 0),
         };
 
         _changeButton = new Button
         {
-            Text = "Change…",
-            Location = new Point(276, 43),
-            Width = 120,
+            Text = Strings.Current.ChangeBinding,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(120, 0),
+            Margin = new Padding(0),
         };
         _changeButton.Click += (_, _) => ToggleCapture();
 
-        _hint = new Label
+        var bindingRow = new FlowLayoutPanel
         {
-            Location = new Point(16, 76),
-            Width = 380,
-            Height = 32,
-            ForeColor = SystemColors.GrayText,
-        };
-
-        var devicesTitle = new Label
-        {
-            Text = "Detected devices",
-            Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-            Location = new Point(16, 116),
+            FlowDirection = FlowDirection.LeftToRight,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(0, 8, 0, 0),
+            WrapContents = false,
         };
+        bindingRow.Controls.Add(_bindingBox);
+        bindingRow.Controls.Add(_changeButton);
+
+        _hint = Prose(SystemColors.GrayText);
+
+        Label devicesTitle = Heading(Strings.Current.DetectedDevices, 10f);
 
         _devices = new ListBox
         {
-            Location = new Point(16, 142),
-            Size = new Size(380, 74),
+            Size = new Size(ContentWidth, 74),
             IntegralHeight = false,
+            Margin = new Padding(0, 8, 0, 0),
         };
 
-        _warning = new Label
-        {
-            Location = new Point(16, 224),
-            Width = 380,
-            Height = 48,
-            ForeColor = Color.FromArgb(160, 90, 0),
-        };
+        // Amber, and only filled in when a joystick binding makes it true. With AutoSize
+        // an empty warning takes no room at all rather than leaving a gap.
+        _warning = Prose(Color.FromArgb(160, 90, 0));
 
-        var sendingTitle = new Label
-        {
-            Text = "Sending",
-            Font = new Font(Font, FontStyle.Bold),
-            Location = new Point(16, 288),
-            AutoSize = true,
-        };
+        Label sendingTitle = Heading(Strings.Current.SendingHeading, 10f);
 
         _handsFreeBox = new CheckBox
         {
-            Text = "Hands-free — send without reviewing",
-            Location = new Point(16, 314),
+            Text = Strings.Current.HandsFreeCheckbox,
             AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
             Checked = handsFree,
+            Margin = new Padding(0, 8, 0, 0),
         };
         _handsFreeBox.CheckedChanged += (_, _) => RefreshHandsFree();
 
-        _handsFreeNote = new Label
-        {
-            Location = new Point(16, 340),
-            Width = 380,
-            Height = 64,
-        };
+        _handsFreeNote = Prose(SystemColors.GrayText);
 
         _cuesBox = new CheckBox
         {
-            Text = "Play a tone when recording starts, sends, or is dropped",
-            Location = new Point(16, 410),
+            Text = Strings.Current.AudibleCuesCheckbox,
             AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
             Checked = audibleCues,
+            Margin = new Padding(0, 12, 0, 0),
         };
 
         _okButton = new Button
         {
-            Text = "OK",
+            Text = Strings.Current.Ok,
             DialogResult = DialogResult.OK,
-            Location = new Point(226, 440),
-            Width = 84,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(84, 0),
+            Margin = new Padding(8, 0, 0, 0),
         };
 
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = Strings.Current.Cancel,
             DialogResult = DialogResult.Cancel,
-            Location = new Point(318, 440),
-            Width = 84,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(84, 0),
+            Margin = new Padding(8, 0, 0, 0),
         };
 
-        Controls.AddRange([
-            title, _bindingBox, _changeButton, _hint, devicesTitle, _devices, _warning,
-            sendingTitle, _handsFreeBox, _handsFreeNote, _cuesBox, _okButton, cancelButton,
+        // Right to left, so the rightmost button is the one added first.
+        var buttons = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0, 16, 0, 0),
+            WrapContents = false,
+        };
+        buttons.Controls.Add(cancelButton);
+        buttons.Controls.Add(_okButton);
+
+        var layout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            GrowStyle = TableLayoutPanelGrowStyle.AddRows,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+        };
+        layout.Controls.AddRange([
+            title, bindingRow, _hint, devicesTitle, _devices, _warning,
+            sendingTitle, _handsFreeBox, _handsFreeNote, _cuesBox, buttons,
         ]);
+
+        Controls.Add(layout);
         AcceptButton = _okButton;
         CancelButton = cancelButton;
 
@@ -167,6 +186,24 @@ internal sealed class SettingsForm : Form
     /// <summary>Whether to play the cue tones, valid once the dialog returns OK.</summary>
     public bool AudibleCues => _cuesBox.Checked;
 
+    /// <summary>A section title.</summary>
+    private static Label Heading(string text, float size) => new()
+    {
+        Text = text,
+        Font = new Font("Segoe UI", size, FontStyle.Bold),
+        AutoSize = true,
+        Margin = new Padding(0, 16, 0, 0),
+    };
+
+    /// <summary>A paragraph that wraps at <see cref="ContentWidth"/> and grows downwards.</summary>
+    private static Label Prose(Color colour) => new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(ContentWidth, 0),
+        ForeColor = colour,
+        Margin = new Padding(0, 6, 0, 0),
+    };
+
     /// <summary>
     /// Says what the checkbox above it actually means, in the colour that matches how
     /// much it matters - the same amber the joystick caveat uses when it applies.
@@ -178,12 +215,8 @@ internal sealed class SettingsForm : Form
             : SystemColors.GrayText;
 
         _handsFreeNote.Text = _handsFreeBox.Checked
-            ? "Whatever is transcribed goes straight into chat, mishearings included, "
-                + "with nothing to read or discard first. Recordings are also cut shorter "
-                + "than usual, because nobody is watching what the time limit sends."
-            : "Every message waits in the overlay first: Enter sends it, Escape discards "
-                + "it. In VR that overlay cannot be seen or answered — that is what "
-                + "hands-free is for.";
+            ? Strings.Current.HandsFreeOnNote
+            : Strings.Current.HandsFreeOffNote;
     }
 
     private void ToggleCapture()
@@ -197,10 +230,9 @@ internal sealed class SettingsForm : Form
 
         _controller.BeginCapture();
 
-        _changeButton.Text = "Stop";
-        _bindingBox.Text = "Press a key or button…";
-        _hint.Text = "Listening. Every keystroke is captured, so use the Stop button "
-            + "with the mouse if you change your mind.";
+        _changeButton.Text = Strings.Current.StopCapture;
+        _bindingBox.Text = Strings.Current.PressAKeyOrButton;
+        _hint.Text = Strings.Current.CaptureListening;
         _okButton.Enabled = false;
     }
 
@@ -219,18 +251,17 @@ internal sealed class SettingsForm : Form
 
     private void RefreshBinding()
     {
-        _changeButton.Text = "Change…";
+        _changeButton.Text = Strings.Current.ChangeBinding;
         _bindingBox.Text = _binding.Describe();
         _okButton.Enabled = true;
 
         _hint.Text = _binding.IsKeyboard
-            ? "This key is hidden from Condor while Gaggle is running."
-            : "Joystick buttons cannot be hidden from Condor.";
+            ? Strings.Current.KeyHiddenFromCondor
+            : Strings.Current.ButtonsCannotBeHidden;
 
         _warning.Text = _binding.IsKeyboard
             ? string.Empty
-            : "Condor will still see this button. Pick one the sim does not use, or it "
-                + "will do both things at once.";
+            : Strings.Current.JoystickWarning;
     }
 
     private void RefreshDevices()
@@ -241,13 +272,13 @@ internal sealed class SettingsForm : Form
 
         if (found.Count == 0)
         {
-            _devices.Items.Add("No joysticks detected — keyboard only.");
+            _devices.Items.Add(Strings.Current.NoJoysticksDetected);
             return;
         }
 
         foreach ((int id, string name, int buttons) in found)
         {
-            _devices.Items.Add($"Stick {id + 1}: {name} ({buttons} buttons)");
+            _devices.Items.Add(Strings.Current.JoystickDevice(id + 1, name, buttons));
         }
     }
 

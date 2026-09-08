@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows.Forms;
+using Gaggle.Localisation;
 using Gaggle.Update;
 
 namespace Gaggle.Ui;
@@ -26,42 +27,49 @@ internal enum UpdateChoice
 /// A MessageBox cannot express Install / Later / Skip without pressing Yes-No-Cancel into
 /// service and hoping the user reads the prompt carefully, and the release notes are the
 /// main thing someone wants before agreeing to restart mid-session.
+///
+/// Auto-sizing for the reason <see cref="SettingsForm"/> explains. The notes box keeps a
+/// fixed size on purpose: release notes have no length to size to, so they scroll.
 /// </summary>
 internal sealed class UpdateForm : Form
 {
+    private const int ContentWidth = 424;
+
     public UpdateForm(ReleaseInfo release, bool canInstallInPlace)
     {
         ArgumentNullException.ThrowIfNull(release);
 
         Choice = UpdateChoice.Later;
 
-        Text = $"Update {AppInfo.Name}";
+        Text = Strings.Current.UpdateTitle(AppInfo.Name);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(460, 330);
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Padding = new Padding(16);
         Font = new Font("Segoe UI", 9f);
 
         var title = new Label
         {
-            Text = $"{AppInfo.Name} {release.Version} is available",
+            Text = Strings.Current.VersionIsAvailable(AppInfo.Name, release.Version),
             Font = new Font("Segoe UI", 12f, FontStyle.Bold),
-            Location = new Point(16, 16),
             AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
+            Margin = new Padding(0),
         };
 
         var current = new Label
         {
             Text = canInstallInPlace
-                ? $"You are running {AppInfo.Version}. Gaggle will restart to finish."
-                : $"You are running {AppInfo.Version}. This copy cannot update itself.",
-            Location = new Point(18, 48),
-            Width = 424,
+                ? Strings.Current.RunningWillRestart(AppInfo.Name, AppInfo.Version)
+                : Strings.Current.RunningCannotUpdate(AppInfo.Version),
+            AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
             ForeColor = SystemColors.GrayText,
-            AutoSize = false,
-            Height = 18,
+            Margin = new Padding(2, 10, 0, 0),
         };
 
         var notes = new TextBox
@@ -69,50 +77,93 @@ internal sealed class UpdateForm : Form
             // Read-only rather than a Label: release notes are as long as they need to be,
             // and this way they scroll instead of being cut off.
             Text = Normalise(release.Notes),
-            Location = new Point(18, 76),
-            Size = new Size(424, 160),
+            Size = new Size(ContentWidth, 160),
             Multiline = true,
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
             BackColor = SystemColors.Window,
+            Margin = new Padding(2, 12, 0, 0),
         };
 
         var link = new LinkLabel
         {
-            Text = "View this release on GitHub",
-            Location = new Point(18, 246),
+            Text = Strings.Current.ViewReleaseOnGitHub,
             AutoSize = true,
+            Margin = new Padding(2, 12, 0, 0),
         };
         link.LinkClicked += (_, _) => Open(release.HtmlUrl);
 
         var skip = new Button
         {
-            Text = "Skip this version",
-            Location = new Point(18, 282),
-            Width = 120,
-            Height = 26,
+            Text = Strings.Current.SkipThisVersion,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(120, 26),
+            Margin = new Padding(0),
         };
         skip.Click += (_, _) => Close(UpdateChoice.Skip);
 
         var later = new Button
         {
-            Text = "Later",
-            Location = new Point(238, 282),
-            Width = 100,
-            Height = 26,
+            Text = Strings.Current.Later,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(100, 26),
+            Margin = new Padding(8, 0, 0, 0),
             DialogResult = DialogResult.Cancel,
         };
 
         var install = new Button
         {
-            Text = canInstallInPlace ? "Install now" : "Open downloads",
-            Location = new Point(344, 282),
-            Width = 100,
-            Height = 26,
+            Text = canInstallInPlace ? Strings.Current.InstallNow : Strings.Current.OpenDownloads,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(100, 26),
+            Margin = new Padding(8, 0, 0, 0),
+            Anchor = AnchorStyles.Right,
         };
         install.Click += (_, _) => Close(canInstallInPlace ? UpdateChoice.Install : UpdateChoice.OpenPage);
 
-        Controls.AddRange([title, current, notes, link, skip, later, install]);
+        // Skip sits apart from the pair on the right: it is the one answer that is hard
+        // to take back, so it does not want to be next to the button people reach for.
+        var buttons = new TableLayoutPanel
+        {
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 16, 0, 0),
+        };
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+        var rightPair = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0),
+            WrapContents = false,
+        };
+        rightPair.Controls.Add(install);
+        rightPair.Controls.Add(later);
+
+        buttons.Controls.Add(skip, 0, 0);
+        buttons.Controls.Add(rightPair, 1, 0);
+
+        var layout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            GrowStyle = TableLayoutPanelGrowStyle.AddRows,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+        };
+        layout.Controls.AddRange([title, current, notes, link, buttons]);
+
+        Controls.Add(layout);
         AcceptButton = install;
         CancelButton = later;
     }
@@ -132,7 +183,7 @@ internal sealed class UpdateForm : Form
     /// </summary>
     private static string Normalise(string notes) =>
         string.IsNullOrWhiteSpace(notes)
-            ? "No release notes were published."
+            ? Strings.Current.NoReleaseNotes
             : notes.Replace("\r\n", "\n", StringComparison.Ordinal)
                 .Replace("\n", Environment.NewLine, StringComparison.Ordinal)
                 .Trim();

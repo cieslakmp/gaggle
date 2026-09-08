@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Gaggle.Localisation;
 
 namespace Gaggle.Net;
 
@@ -138,7 +139,10 @@ public readonly record struct DownloadProgress(long BytesReceived, long? TotalBy
 
         if (TotalBytes is > 0)
         {
-            return $"{Fraction!.Value:P0} — {BytesReceived / Megabyte:F1} of {TotalBytes.Value / Megabyte:F1} MB";
+            return Strings.Current.DownloadedOf(
+                $"{Fraction!.Value:P0}",
+                $"{BytesReceived / Megabyte:F1}",
+                $"{TotalBytes.Value / Megabyte:F1}");
         }
 
         return $"{BytesReceived / Megabyte:F1} MB";
