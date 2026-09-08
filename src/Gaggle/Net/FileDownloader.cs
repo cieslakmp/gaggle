@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Gaggle.Localisation;
 
 namespace Gaggle.Net;
@@ -39,6 +40,7 @@ public static class FileDownloader
     public static async Task DownloadAsync(
         string url,
         string destinationPath,
+        long maxBytes,
         IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -56,6 +58,15 @@ public static class FileDownloader
 
         long? total = response.Content.Headers.ContentLength;
 
+        // Checked twice on purpose. A declared length costs nothing to reject before a
+        // byte is written; a server that declares nothing, or lies, is caught in the loop
+        // below. Without either, a host that simply never stops sending fills the disk,
+        // and for the update package that happens before the checksum ever runs.
+        if (total > maxBytes)
+        {
+            throw new InvalidOperationException(Strings.Current.DownloadTooLarge);
+        }
+
         await using (Stream source = await response.Content.ReadAsStreamAsync(cancellationToken))
         await using (var destination = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
@@ -70,8 +81,14 @@ public static class FileDownloader
 
             while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
             {
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 written += read;
+
+                if (written > maxBytes)
+                {
+                    throw new InvalidOperationException(Strings.Current.DownloadTooLarge);
+                }
+
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
 
                 long now = Environment.TickCount64;
                 if (now - lastReportTicks >= ReportInterval.TotalMilliseconds)
@@ -86,6 +103,13 @@ public static class FileDownloader
 
         File.Move(tempPath, destinationPath, overwrite: true);
     }
+
+    /// <summary>
+    /// The most a text response may be. Checksum files are under a hundred bytes and a
+    /// release payload is a few kilobytes, so this is generous rather than tight - it is
+    /// here to stop an endless response being buffered into memory, not to police a size.
+    /// </summary>
+    private const int MaxTextBytes = 4 * 1024 * 1024;
 
     /// <summary>Fetches a small text resource, for checksums and API responses.</summary>
     public static async Task<string> GetStringAsync(
@@ -104,7 +128,38 @@ public static class FileDownloader
             }
         }
 
-        return await http.GetStringAsync(url, cancellationToken);
+        using HttpResponseMessage response = await http.GetAsync(
+            url,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+
+        if (response.Content.Headers.ContentLength > MaxTextBytes)
+        {
+            throw new InvalidOperationException(Strings.Current.DownloadTooLarge);
+        }
+
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+        // Grown a chunk at a time and checked before each write, so a response that
+        // declares nothing and then never stops is refused rather than truncated into
+        // something that could still parse as a checksum.
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[81_920];
+        int read;
+
+        while ((read = await source.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > MaxTextBytes)
+            {
+                throw new InvalidOperationException(Strings.Current.DownloadTooLarge);
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
     /// <summary>The SHA256 of a file as lowercase hex, to match what sha256sum prints.</summary>

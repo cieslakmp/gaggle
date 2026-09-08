@@ -110,6 +110,16 @@ public sealed partial class Strings
             $"{name} is English only — language set to English.",
             $"{name} obsługuje tylko angielski — ustawiono język angielski.");
 
+    public string DownloadTooLarge =>
+        Pick(
+            "That download is larger than it should be, so it was stopped.",
+            "To pobieranie jest większe, niż powinno, więc zostało przerwane.");
+
+    public string ModelChecksumMismatch(string name) =>
+        Pick(
+            $"{name} did not match its published checksum, so it was discarded.",
+            $"{name} nie zgadza się z opublikowaną sumą kontrolną, więc został odrzucony.");
+
     public string ModelInstalled(string name) =>
         Pick($"{name} installed.", $"Zainstalowano {name}.");
 

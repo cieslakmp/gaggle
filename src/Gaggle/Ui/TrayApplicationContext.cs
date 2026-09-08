@@ -921,7 +921,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         try
         {
-            await ModelInstaller.DownloadAsync(choice.FileName, destination, progress);
+            await ModelInstaller.DownloadAsync(choice, destination, progress);
             ShowStatus(Strings.Current.ModelInstalled(Strings.Current.ModelName(choice.FileName)));
             return true;
         }
@@ -964,7 +964,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             ? IssueLink.DescribeEnvironment(_config, DescribeMicrophone(), _watcher.IsRunning)
             : null;
 
-        Open(IssueLink.For(template, environment));
+        Shell.OpenUrl(IssueLink.For(template, environment));
     }
 
     /// <summary>
@@ -1067,7 +1067,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void OpenConfig()
     {
         _config.Save(); // Make sure the file exists before opening it.
-        Process.Start(new ProcessStartInfo(AppConfig.ConfigPath) { UseShellExecute = true });
+        Shell.OpenPath(AppConfig.ConfigPath);
     }
 
     private void ReloadConfig()
@@ -1224,7 +1224,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 break;
 
             case UpdateChoice.OpenPage:
-                Open(GitHubReleases.ReleasesPageUrl);
+                Shell.OpenUrl(GitHubReleases.ReleasesPageUrl);
                 break;
 
             default:
@@ -1289,20 +1289,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Gaggle.exe, so nothing is put back on the way out.
         _overlay.ShowStatus(Strings.Current.RestartingToFinishUpdate);
         ExitThread();
-    }
-
-    /// <summary>
-    /// Hands a URL to the shell. A dead link should not take the tray icon down with it.
-    /// </summary>
-    private static void Open(string target)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
-        {
-        }
     }
 
     // ------------------------------------------------------------------ Status

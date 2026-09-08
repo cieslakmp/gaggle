@@ -1,3 +1,4 @@
+using Gaggle.Localisation;
 using Gaggle.Net;
 
 namespace Gaggle.Speech;
@@ -22,11 +23,16 @@ public static class ModelInstaller
     /// </summary>
     public static readonly IReadOnlyList<ModelChoice> Available =
     [
-        new("ggml-tiny.en.bin", "Tiny (English)", "~75 MB, fastest, noticeably weaker on jargon"),
-        new("ggml-base.en.bin", "Base (English)", "~148 MB, good default for short radio calls"),
-        new("ggml-small.en.bin", "Small (English)", "~488 MB, best accuracy, ~2x slower"),
-        new("ggml-small.bin", "Small (multilingual)", "~488 MB, needed for Polish/German/Spanish"),
-        new("ggml-medium.bin", "Medium (multilingual)", "~1.5 GB, best non-English accuracy, ~3x slower"),
+        new("ggml-tiny.en.bin", "Tiny (English)", "~75 MB, fastest, noticeably weaker on jargon",
+            "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f", 77_704_715),
+        new("ggml-base.en.bin", "Base (English)", "~148 MB, good default for short radio calls",
+            "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002", 147_964_211),
+        new("ggml-small.en.bin", "Small (English)", "~488 MB, best accuracy, ~2x slower",
+            "c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d", 487_614_201),
+        new("ggml-small.bin", "Small (multilingual)", "~488 MB, needed for Polish/German/Spanish",
+            "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b", 487_601_967),
+        new("ggml-medium.bin", "Medium (multilingual)", "~1.5 GB, best non-English accuracy, ~3x slower",
+            "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208", 1_533_763_059),
     ];
 
     public static bool IsInstalled(string modelPath) => File.Exists(modelPath);
@@ -67,14 +73,50 @@ public static class ModelInstaller
     /// and partial-file handling live in <see cref="FileDownloader"/>, which the updater
     /// shares.
     /// </summary>
-    public static Task DownloadAsync(
-        string modelFileName,
+    public static async Task DownloadAsync(
+        ModelChoice choice,
         string destinationPath,
         IProgress<DownloadProgress>? progress = null,
-        CancellationToken cancellationToken = default) =>
-        FileDownloader.DownloadAsync(BaseUrl + modelFileName, destinationPath, progress, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
 
-    public sealed record ModelChoice(string FileName, string Name, string Notes)
+        await FileDownloader.DownloadAsync(
+            BaseUrl + choice.FileName,
+            destinationPath,
+            choice.Bytes,
+            progress,
+            cancellationToken);
+
+        string actual = await FileDownloader.ComputeSha256Async(destinationPath, cancellationToken);
+
+        if (!string.Equals(actual, choice.Sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            // Deleted rather than left on disk: a file this size looks installed, and the
+            // menu would tick it and never offer to fetch it again.
+            TryDelete(destinationPath);
+
+            throw new InvalidOperationException(Strings.Current.ModelChecksumMismatch(choice.Name));
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    /// <param name="Sha256">
+    /// The digest Hugging Face publishes for this file, as the lowercase hex
+    /// <c>ComputeSha256Async</c> returns.
+    /// </param>
+    /// <param name="Bytes">The exact published size, used to bound the download.</param>
+    public sealed record ModelChoice(string FileName, string Name, string Notes, string Sha256, long Bytes)
     {
         /// <summary>Whether this build can handle anything other than English.</summary>
         public bool IsMultilingual => IsMultilingualFile(FileName);

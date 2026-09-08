@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Windows.Forms;
 using Gaggle.Localisation;
 using Gaggle.Update;
@@ -91,7 +90,7 @@ internal sealed class UpdateForm : Form
             AutoSize = true,
             Margin = new Padding(2, 12, 0, 0),
         };
-        link.LinkClicked += (_, _) => Open(release.HtmlUrl);
+        link.LinkClicked += (_, _) => Shell.OpenUrl(release.HtmlUrl);
 
         var skip = new Button
         {
@@ -187,19 +186,4 @@ internal sealed class UpdateForm : Form
             : notes.Replace("\r\n", "\n", StringComparison.Ordinal)
                 .Replace("\n", Environment.NewLine, StringComparison.Ordinal)
                 .Trim();
-
-    /// <summary>
-    /// Hands a URL to the shell. A dead link should not take the tray icon down with it,
-    /// so failures are swallowed — the same bargain <see cref="AboutForm"/> makes.
-    /// </summary>
-    private static void Open(string target)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
-        {
-        }
-    }
 }
