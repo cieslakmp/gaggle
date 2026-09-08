@@ -26,10 +26,14 @@ public static class AppInfo
     /// </summary>
     public static string Version { get; } = ReadVersion();
 
-    /// <summary>One line on what the app is, taken from the csproj description.</summary>
+    /// <summary>
+    /// One line on what the app is, taken from the csproj description. Written down
+    /// once, there: the SDK emits the attribute from it on every build, and
+    /// AppInfoTests is what says so out loud if that ever stops being true.
+    /// </summary>
     public static string Description { get; } =
         typeof(AppInfo).Assembly.GetCustomAttribute<AssemblyDescriptionAttribute>()?.Description
-            ?? "Push-to-talk voice chat for Condor Soaring Simulator";
+            ?? string.Empty;
 
     private static string ReadVersion()
     {
