@@ -27,7 +27,7 @@ internal enum UpdateChoice
 /// service and hoping the user reads the prompt carefully, and the release notes are the
 /// main thing someone wants before agreeing to restart mid-session.
 ///
-/// Auto-sizing for the reason <see cref="SettingsForm"/> explains. The notes box keeps a
+/// Auto-sizing for the reason <see cref="DialogLayout"/> explains. The notes box keeps a
 /// fixed size on purpose: release notes have no length to size to, so they scroll.
 /// </summary>
 internal sealed class UpdateForm : Form
@@ -40,36 +40,21 @@ internal sealed class UpdateForm : Form
 
         Choice = UpdateChoice.Later;
 
-        Text = Strings.Current.UpdateTitle(AppInfo.Name);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        MinimizeBox = false;
+        DialogLayout.Prepare(this, Strings.Current.UpdateTitle(AppInfo.Name));
         ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterScreen;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(16);
-        Font = new Font("Segoe UI", 9f);
 
-        var title = new Label
-        {
-            Text = Strings.Current.VersionIsAvailable(AppInfo.Name, release.Version),
-            Font = new Font("Segoe UI", 12f, FontStyle.Bold),
-            AutoSize = true,
-            MaximumSize = new Size(ContentWidth, 0),
-            Margin = new Padding(0),
-        };
+        Label title = DialogLayout.Heading(
+            Strings.Current.VersionIsAvailable(AppInfo.Name, release.Version), 12f);
+        title.MaximumSize = new Size(ContentWidth, 0);
+        title.Margin = new Padding(0);
 
-        var current = new Label
-        {
-            Text = canInstallInPlace
+        Label current = DialogLayout.Prose(
+            ContentWidth,
+            SystemColors.GrayText,
+            canInstallInPlace
                 ? Strings.Current.RunningWillRestart(AppInfo.Name, AppInfo.Version)
-                : Strings.Current.RunningCannotUpdate(AppInfo.Version),
-            AutoSize = true,
-            MaximumSize = new Size(ContentWidth, 0),
-            ForeColor = SystemColors.GrayText,
-            Margin = new Padding(2, 10, 0, 0),
-        };
+                : Strings.Current.RunningCannotUpdate(AppInfo.Version));
+        current.Margin = new Padding(2, 10, 0, 0);
 
         var notes = new TextBox
         {
@@ -92,35 +77,18 @@ internal sealed class UpdateForm : Form
         };
         link.LinkClicked += (_, _) => Shell.OpenUrl(release.HtmlUrl);
 
-        var skip = new Button
-        {
-            Text = Strings.Current.SkipThisVersion,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(120, 26),
-            Margin = new Padding(0),
-        };
+        Button skip = DialogLayout.Button(Strings.Current.SkipThisVersion, new Size(120, 26));
         skip.Click += (_, _) => Close(UpdateChoice.Skip);
 
-        var later = new Button
-        {
-            Text = Strings.Current.Later,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(100, 26),
-            Margin = new Padding(8, 0, 0, 0),
-            DialogResult = DialogResult.Cancel,
-        };
+        Button later = DialogLayout.Button(
+            Strings.Current.Later, new Size(100, 26), new Padding(8, 0, 0, 0));
+        later.DialogResult = DialogResult.Cancel;
 
-        var install = new Button
-        {
-            Text = canInstallInPlace ? Strings.Current.InstallNow : Strings.Current.OpenDownloads,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(100, 26),
-            Margin = new Padding(8, 0, 0, 0),
-            Anchor = AnchorStyles.Right,
-        };
+        Button install = DialogLayout.Button(
+            canInstallInPlace ? Strings.Current.InstallNow : Strings.Current.OpenDownloads,
+            new Size(100, 26),
+            new Padding(8, 0, 0, 0));
+        install.Anchor = AnchorStyles.Right;
         install.Click += (_, _) => Close(canInstallInPlace ? UpdateChoice.Install : UpdateChoice.OpenPage);
 
         // Skip sits apart from the pair on the right: it is the one answer that is hard
@@ -137,32 +105,10 @@ internal sealed class UpdateForm : Form
         buttons.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-        var rightPair = new FlowLayoutPanel
-        {
-            FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Anchor = AnchorStyles.Right,
-            Margin = new Padding(0),
-            WrapContents = false,
-        };
-        rightPair.Controls.Add(install);
-        rightPair.Controls.Add(later);
-
         buttons.Controls.Add(skip, 0, 0);
-        buttons.Controls.Add(rightPair, 1, 0);
+        buttons.Controls.Add(DialogLayout.ButtonRow(install, later), 1, 0);
 
-        var layout = new TableLayoutPanel
-        {
-            ColumnCount = 1,
-            GrowStyle = TableLayoutPanelGrowStyle.AddRows,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-        };
-        layout.Controls.AddRange([title, current, notes, link, buttons]);
-
-        Controls.Add(layout);
+        Controls.Add(DialogLayout.Column(title, current, notes, link, buttons));
         AcceptButton = install;
         CancelButton = later;
     }

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Gaggle.Interop;
 using Microsoft.Win32;
 
@@ -49,15 +50,9 @@ public sealed class JoystickWatcher : IDisposable
 
         for (uint id = 0; id < slots; id++)
         {
-            var info = new JoystickNative.JOYINFOEX
-            {
-                dwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<JoystickNative.JOYINFOEX>(),
-                dwFlags = JoystickNative.JOY_RETURNBUTTONS,
-            };
-
             // joyGetNumDevs reports driver slots, not attached hardware; a successful
             // poll is the only reliable test that something is actually plugged in.
-            if (JoystickNative.joyGetPosEx(id, ref info) != JoystickNative.JOYERR_NOERROR)
+            if (ReadButtons(id) is null)
             {
                 continue;
             }
@@ -69,7 +64,7 @@ public sealed class JoystickWatcher : IDisposable
             uint capsResult = JoystickNative.joyGetDevCaps(
                 (UIntPtr)id,
                 ref caps,
-                (uint)System.Runtime.InteropServices.Marshal.SizeOf<JoystickNative.JOYCAPS>());
+                (uint)Marshal.SizeOf<JoystickNative.JOYCAPS>());
 
             if (capsResult == JoystickNative.JOYERR_NOERROR)
             {
@@ -133,25 +128,21 @@ public sealed class JoystickWatcher : IDisposable
                 continue;
             }
 
-            var info = new JoystickNative.JOYINFOEX
-            {
-                dwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<JoystickNative.JOYINFOEX>(),
-                dwFlags = JoystickNative.JOY_RETURNBUTTONS,
-            };
-
-            if (JoystickNative.joyGetPosEx(id, ref info) != JoystickNative.JOYERR_NOERROR)
+            if (ReadButtons(id) is not uint buttons)
             {
                 _present[id] = false;
                 _lastButtons[id] = 0;
                 continue;
             }
 
-            uint previous = _present[id] ? _lastButtons[id] : info.dwButtons;
+            // A device seen for the first time reports no edges: without this, whatever
+            // is already held at that moment would read as a press that never happened.
+            uint previous = _present[id] ? _lastButtons[id] : buttons;
             _present[id] = true;
-            _lastButtons[id] = info.dwButtons;
+            _lastButtons[id] = buttons;
 
-            uint newlyPressed = info.dwButtons & ~previous;
-            uint newlyReleased = previous & ~info.dwButtons;
+            uint newlyPressed = buttons & ~previous;
+            uint newlyReleased = previous & ~buttons;
 
             if (Capturing)
             {
@@ -179,6 +170,23 @@ public sealed class JoystickWatcher : IDisposable
                 Released?.Invoke();
             }
         }
+    }
+
+    /// <summary>
+    /// The button bitmask for one device, or null when nothing answered on that slot —
+    /// which is also how an unplugged device is told apart from one with nothing pressed.
+    /// </summary>
+    private static uint? ReadButtons(uint id)
+    {
+        var info = new JoystickNative.JOYINFOEX
+        {
+            dwSize = (uint)Marshal.SizeOf<JoystickNative.JOYINFOEX>(),
+            dwFlags = JoystickNative.JOY_RETURNBUTTONS,
+        };
+
+        return JoystickNative.joyGetPosEx(id, ref info) == JoystickNative.JOYERR_NOERROR
+            ? info.dwButtons
+            : null;
     }
 
     private static int LowestSetBit(uint value) => System.Numerics.BitOperations.TrailingZeroCount(value);

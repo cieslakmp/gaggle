@@ -155,23 +155,6 @@ public static partial class MessageSanitiser
         return clipped.TrimEnd();
     }
 
-    /// <summary>
-    /// True if every character can be typed on the given layout. The tray uses this
-    /// to warn rather than silently dropping characters.
-    /// </summary>
-    public static bool IsTypable(string text, IntPtr layout)
-    {
-        foreach (char ch in text)
-        {
-            if (Interop.NativeMethods.VkKeyScanEx(ch, layout) == -1)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /// <summary>Best-effort fold of accented characters to ASCII for stubborn layouts.</summary>
     public static string FoldToAscii(string text)
     {

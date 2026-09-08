@@ -11,7 +11,7 @@ namespace Gaggle.Ui;
 /// worth far more with a config.json attached, and this is where someone will look
 /// for it.
 ///
-/// Auto-sizing for the reason <see cref="SettingsForm"/> explains: the description and
+/// Auto-sizing for the reason <see cref="DialogLayout"/> explains: the description and
 /// the folder path are both longer in some languages than in others.
 /// </summary>
 internal sealed class AboutForm : Form
@@ -20,33 +20,14 @@ internal sealed class AboutForm : Form
 
     public AboutForm()
     {
-        Text = Strings.Current.AboutTitle(AppInfo.Name);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        MinimizeBox = false;
+        DialogLayout.Prepare(this, Strings.Current.AboutTitle(AppInfo.Name));
         ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterScreen;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(16);
-        Font = new Font("Segoe UI", 9f);
 
-        var title = new Label
-        {
-            Text = $"{AppInfo.Name} {AppInfo.Version}",
-            Font = new Font("Segoe UI", 14f, FontStyle.Bold),
-            AutoSize = true,
-            Margin = new Padding(0),
-        };
+        Label title = DialogLayout.Heading($"{AppInfo.Name} {AppInfo.Version}", 14f);
+        title.Margin = new Padding(0);
 
-        var description = new Label
-        {
-            Text = AppInfo.Description,
-            AutoSize = true,
-            MaximumSize = new Size(ContentWidth, 0),
-            ForeColor = SystemColors.GrayText,
-            Margin = new Padding(2, 8, 0, 0),
-        };
+        Label description = DialogLayout.Prose(ContentWidth, SystemColors.GrayText, AppInfo.Description);
+        description.Margin = new Padding(2, 8, 0, 0);
 
         var author = new Label
         {
@@ -88,30 +69,13 @@ internal sealed class AboutForm : Form
         };
         dataFolder.LinkClicked += (_, _) => Shell.OpenPath(AppConfig.DataDirectory);
 
-        var close = new Button
-        {
-            Text = Strings.Current.Close,
-            DialogResult = DialogResult.OK,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(84, 0),
-            Anchor = AnchorStyles.Right,
-            Margin = new Padding(0, 18, 0, 0),
-        };
+        Button close = DialogLayout.Button(
+            Strings.Current.Close, new Size(84, 0), new Padding(0, 18, 0, 0));
+        close.DialogResult = DialogResult.OK;
+        close.Anchor = AnchorStyles.Right;
 
-        var layout = new TableLayoutPanel
-        {
-            ColumnCount = 1,
-            GrowStyle = TableLayoutPanelGrowStyle.AddRows,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-        };
-        layout.Controls.AddRange([
-            title, description, author, repository, report, dataLabel, dataFolder, close,
-        ]);
-
-        Controls.Add(layout);
+        Controls.Add(DialogLayout.Column(
+            title, description, author, repository, report, dataLabel, dataFolder, close));
         AcceptButton = close;
         CancelButton = close;
     }

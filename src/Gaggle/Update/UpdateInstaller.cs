@@ -196,7 +196,7 @@ public static class UpdateInstaller
         {
             // A package that failed verification is not left behind to be retried by
             // anything, or mistaken for a good one later.
-            TryDelete(packagePath);
+            FileDownloader.TryDelete(packagePath);
             throw;
         }
 
@@ -261,7 +261,7 @@ public static class UpdateInstaller
         }
 
         // The zip is only a delivery format, and keeping it costs ~80 MB per update.
-        TryDelete(packagePath);
+        FileDownloader.TryDelete(packagePath);
     }
 
     private static void LaunchScript(string installDirectory)
@@ -304,17 +304,6 @@ public static class UpdateInstaller
         }
 
         return Path.GetDirectoryName(processPath);
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
     }
 
     /// <summary>

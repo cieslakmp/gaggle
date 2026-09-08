@@ -206,7 +206,7 @@ app and a race starting. The release assets are matched by suffix (`-win-x64.zip
 | `Text/` | Transcript sanitising before anything reaches chat |
 | `Condor/` | Process/foreground detection and the chat macro |
 | `Update/` | GitHub release lookup, version comparison, the self-replacing install |
-| `Ui/` | Tray icon, state machine, review overlay, settings window |
+| `Ui/` | Tray icon, state machine, review overlay, settings window, shared dialog chrome |
 | `IssueLink.cs` | Prefilled links to the GitHub issue forms in `.github/ISSUE_TEMPLATE` |
 | `tests/Gaggle.Tests/` | xunit.v3 suite for the hardware-free logic |
 
@@ -233,8 +233,13 @@ because with translation on `pl`, `de` and `es` all decode through the same path
 near-identical English; the per-language codes survive in config for pinning one when
 detection picks wrong.
 
-`ReloadConfig` in `Ui/TrayApplicationContext.cs` copies config fields across one by one.
-A new `AppConfig` property that is not added there is silently dropped by "Reload config".
+`ReloadConfig` in `Ui/TrayApplicationContext.cs` swaps the whole `AppConfig` rather than
+copying it property by property, so a new property needs nothing done to it there. That is
+why `_config` is not `readonly`, and it only works because nothing holds on to the
+instance — `ChatSender` and `IssueLink` take it as a parameter per call. Store an
+`AppConfig` in a field somewhere and "Reload config" starts handing out a stale one.
+The copy this replaced had to name all twenty-six properties, and one left off the list
+was dropped by "Reload config" with nothing anywhere to say so.
 
 Every user-facing string goes in `Localisation/Strings.*.cs`, in both languages, reached
 as `Strings.Current.Whatever`. Formatted text is a *method* rather than a format string,

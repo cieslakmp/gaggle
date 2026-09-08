@@ -25,7 +25,11 @@ namespace Gaggle.Ui;
 /// </summary>
 internal sealed class TrayApplicationContext : ApplicationContext
 {
-    private readonly AppConfig _config;
+    // Not readonly: "Reload config" swaps the whole object rather than copying it field
+    // by field, so that a new AppConfig property cannot be forgotten there. Nothing holds
+    // on to the instance — ChatSender and IssueLink take it per call — so every reader
+    // sees the new one from the moment it lands. See ReloadConfig.
+    private AppConfig _config;
     private readonly NotifyIcon _tray;
     // Not readonly, and not built in the constructor: the whole menu is thrown away and
     // rebuilt when the interface language changes, and a ContextMenuStrip disposes the
@@ -131,11 +135,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (InvalidOperationException ex)
         {
-            MessageBox.Show(
-                Strings.Current.PushToTalkUnavailable(ex.Message),
-                "Gaggle",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            Tell(Strings.Current.PushToTalkUnavailable(ex.Message), MessageBoxIcon.Warning);
         }
 
         RefreshStatus();
@@ -630,7 +630,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         foreach (ModelInstaller.ModelChoice choice in ModelInstaller.Available)
         {
-            bool installed = File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName));
+            bool installed = IsOnDisk(choice);
 
             string caption =
                 $"{Strings.Current.ModelName(choice.FileName)} — {Strings.Current.ModelNotes(choice.FileName)}";
@@ -742,17 +742,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return true;
         }
 
-        if (_downloading)
+        if (DownloadAlreadyRunning())
         {
-            ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
             return false;
         }
 
         // Anything already on disk beats a download. Available is ordered smallest
         // first, so the last installed English build is the most capable one.
         ModelInstaller.ModelChoice? installed = ModelInstaller.Available.LastOrDefault(
-            choice => !choice.IsMultilingual
-                && File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName)));
+            choice => !choice.IsMultilingual && IsOnDisk(choice));
 
         if (installed is not null)
         {
@@ -763,26 +761,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         ModelInstaller.ModelChoice offer = ModelInstaller.CounterpartEnglish(_config.WhisperModelFile);
 
-        DialogResult answer = MessageBox.Show(
+        return await OfferModelAsync(
+            offer,
             Strings.Current.EnglishModelOffer(
                 Strings.Current.ModelName(offer.FileName),
-                Strings.Current.ModelNotes(offer.FileName)),
-            "Gaggle",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Question);
-
-        if (answer != DialogResult.OK)
-        {
-            return false;
-        }
-
-        if (!await DownloadModelAsync(offer, Path.Combine(AppConfig.DataDirectory, offer.FileName), alreadyConfirmed: true))
-        {
-            return false;
-        }
-
-        _config.WhisperModelFile = offer.FileName;
-        return true;
+                Strings.Current.ModelNotes(offer.FileName)));
     }
 
     /// <summary>
@@ -792,17 +775,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// </summary>
     private async Task<bool> EnsureMultilingualModelAsync(SpokenLanguage language)
     {
-        if (_downloading)
+        if (DownloadAlreadyRunning())
         {
-            ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
             return false;
         }
 
         // Nobody should download half a gigabyte twice, so an installed multilingual
         // model wins over any download.
         ModelInstaller.ModelChoice? installed = ModelInstaller.Available.FirstOrDefault(
-            choice => choice.IsMultilingual
-                && File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName)));
+            choice => choice.IsMultilingual && IsOnDisk(choice));
 
         if (installed is not null)
         {
@@ -821,23 +802,38 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return false;
         }
 
-        DialogResult answer = MessageBox.Show(
+        return await OfferModelAsync(
+            offer,
             Strings.Current.MultilingualModelOffer(
                 Strings.Current.SpokenLanguageName(language.Code),
                 Strings.Current.ModelName(offer.FileName),
-                Strings.Current.ModelNotes(offer.FileName)),
-            "Gaggle",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Question);
+                Strings.Current.ModelNotes(offer.FileName)));
+    }
 
-        if (answer != DialogResult.OK)
+    /// <summary>Whether a ggml file is already in the data folder.</summary>
+    private static bool IsOnDisk(ModelInstaller.ModelChoice choice) =>
+        File.Exists(Path.Combine(AppConfig.DataDirectory, choice.FileName));
+
+    /// <summary>Whether a download already owns the tray, saying so if it does.</summary>
+    private bool DownloadAlreadyRunning()
+    {
+        if (!_downloading)
         {
             return false;
         }
 
-        string destination = Path.Combine(AppConfig.DataDirectory, offer.FileName);
+        ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
+        return true;
+    }
 
-        if (!await DownloadModelAsync(offer, destination, alreadyConfirmed: true))
+    /// <summary>Offers a model and, if it is accepted and downloads, selects it.</summary>
+    private async Task<bool> OfferModelAsync(ModelInstaller.ModelChoice offer, string question)
+    {
+        if (!Ask(question)
+            || !await DownloadModelAsync(
+                offer,
+                Path.Combine(AppConfig.DataDirectory, offer.FileName),
+                alreadyConfirmed: true))
         {
             return false;
         }
@@ -848,9 +844,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private async Task SelectModelAsync(ModelInstaller.ModelChoice choice, bool installed)
     {
-        if (_downloading)
+        if (DownloadAlreadyRunning())
         {
-            ShowStatus(Strings.Current.ModelDownloadInProgress, isError: true);
             return;
         }
 
@@ -887,65 +882,92 @@ internal sealed class TrayApplicationContext : ApplicationContext
         string destination,
         bool alreadyConfirmed = false)
     {
-        if (!alreadyConfirmed)
+        if (!alreadyConfirmed
+            && !Ask(Strings.Current.DownloadModelQuestion(
+                Strings.Current.ModelName(choice.FileName),
+                Strings.Current.ModelNotes(choice.FileName))))
         {
-            DialogResult answer = MessageBox.Show(
-                Strings.Current.DownloadModelQuestion(
-                    Strings.Current.ModelName(choice.FileName),
-                    Strings.Current.ModelNotes(choice.FileName)),
-                "Gaggle",
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Question);
-
-            if (answer != DialogResult.OK)
-            {
-                return false;
-            }
+            return false;
         }
 
+        bool installed = await RunDownloadAsync(
+            report => Strings.Current.DownloadingModel(
+                Strings.Current.ModelName(choice.FileName),
+                report.Describe()),
+            progress => ModelInstaller.DownloadAsync(choice, destination, progress),
+            Strings.Current.DownloadFailed);
+
+        if (installed)
+        {
+            ShowStatus(Strings.Current.ModelInstalled(Strings.Current.ModelName(choice.FileName)));
+        }
+
+        RefreshStatus();
+
+        return installed;
+    }
+
+    /// <summary>
+    /// Runs a long download with the overlay and the tray given over to reporting it —
+    /// shared by the model and the update, which want the same progress line, the same
+    /// working icon and the same failure box.
+    ///
+    /// Returns whether it finished. The busy flags are put back either way; redrawing the
+    /// status is left to the caller, because the updater exits rather than repainting.
+    /// </summary>
+    private async Task<bool> RunDownloadAsync(
+        Func<DownloadProgress, string> describeProgress,
+        Func<IProgress<DownloadProgress>, Task> download,
+        Func<string, string> describeFailure)
+    {
         // Constructed on the UI thread, so its callbacks arrive there too.
         var progress = new Progress<DownloadProgress>(report =>
         {
-            string text = Strings.Current.DownloadingModel(
-                Strings.Current.ModelName(choice.FileName),
-                report.Describe());
+            string text = describeProgress(report);
 
             _overlay.ShowStatus(text);
             _tray.Text = Truncate($"Gaggle — {text}", TrayTextLimit);
         });
 
         _downloading = true;
-        _busy = true; // Push-to-talk would have no model to use anyway.
+        _busy = true; // Push-to-talk has nothing to use while this runs.
         _statusTimeout.Stop();
         _tray.Icon = TrayIcons.Create(TrayIcons.Working);
 
         try
         {
-            await ModelInstaller.DownloadAsync(choice, destination, progress);
-            ShowStatus(Strings.Current.ModelInstalled(Strings.Current.ModelName(choice.FileName)));
+            await download(progress);
             return true;
         }
         catch (Exception ex)
         {
             _overlay.HideOverlay();
-            MessageBox.Show(
-                Strings.Current.DownloadFailed(ex.Message),
-                "Gaggle",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            Tell(describeFailure(ex.Message), MessageBoxIcon.Error);
             return false;
         }
         finally
         {
             _downloading = false;
             _busy = false;
-            RefreshStatus();
         }
     }
 
     /// <summary>NotifyIcon.Text throws above 63 characters.</summary>
     private static string Truncate(string text, int maxLength) =>
         text.Length <= maxLength ? text : text[..maxLength];
+
+    // ------------------------------------------------------------------ Prompts
+
+    /// <summary>
+    /// Puts a question to the user. Every way out of the box other than OK — Cancel, the
+    /// close button, Escape — answers false, so a caller only proceeds on a deliberate yes.
+    /// </summary>
+    private static bool Ask(string text, MessageBoxIcon icon = MessageBoxIcon.Question) =>
+        MessageBox.Show(text, "Gaggle", MessageBoxButtons.OKCancel, icon) == DialogResult.OK;
+
+    /// <summary>Says something that has to be dismissed, for what the overlay cannot carry.</summary>
+    private static void Tell(string text, MessageBoxIcon icon) =>
+        MessageBox.Show(text, "Gaggle", MessageBoxButtons.OK, icon);
 
     // ---------------------------------------------------------------- Feedback
 
@@ -1038,18 +1060,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// </summary>
     private void ToggleHandsFree()
     {
-        if (_config.ReviewBeforeSending)
+        if (_config.ReviewBeforeSending && !Ask(Strings.Current.HandsFreeWarning, MessageBoxIcon.Warning))
         {
-            DialogResult answer = MessageBox.Show(
-                Strings.Current.HandsFreeWarning,
-                "Gaggle",
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Warning);
-
-            if (answer != DialogResult.OK)
-            {
-                return;
-            }
+            return;
         }
 
         _config.ReviewBeforeSending = !_config.ReviewBeforeSending;
@@ -1072,36 +1085,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ReloadConfig()
     {
-        var reloaded = AppConfig.Load();
+        // Swapped wholesale rather than copied property by property. Every setting in
+        // this class is read from _config at the point it is needed, and nothing else
+        // keeps the instance, so the new object is live everywhere the moment it lands.
+        // The copy this replaced had to name all twenty-six properties, and a new one
+        // left out of that list was dropped by "Reload config" with nothing to say so.
+        _config = AppConfig.Load();
 
-        _config.ProcessName = reloaded.ProcessName;
-        _config.OpenChatKey = reloaded.OpenChatKey;
-        _config.SendChatKey = reloaded.SendChatKey;
-        _config.TalkKey = reloaded.TalkKey;
-        _config.ConfirmKey = reloaded.ConfirmKey;
-        _config.CancelKey = reloaded.CancelKey;
-        _config.ReviewBeforeSending = reloaded.ReviewBeforeSending;
-        _config.AudibleFeedback = reloaded.AudibleFeedback;
-        _config.KeyDelayMs = reloaded.KeyDelayMs;
-        _config.ChatOpenDelayMs = reloaded.ChatOpenDelayMs;
-        _config.BeforeSendDelayMs = reloaded.BeforeSendDelayMs;
-        _config.MinSecondsBetweenMessages = reloaded.MinSecondsBetweenMessages;
-        _config.MaxRecordingSeconds = reloaded.MaxRecordingSeconds;
-        _config.HandsFreeMaxRecordingSeconds = reloaded.HandsFreeMaxRecordingSeconds;
-        _config.MicrophoneDeviceIndex = reloaded.MicrophoneDeviceIndex;
-        _config.SilenceThresholdRms = reloaded.SilenceThresholdRms;
-        _config.WhisperModelFile = reloaded.WhisperModelFile;
-        _config.Language = reloaded.Language;
-        _config.TranscriptionThreads = reloaded.TranscriptionThreads;
-        _config.FastTranscription = reloaded.FastTranscription;
-        _config.MaxMessageLength = reloaded.MaxMessageLength;
-        _config.CheckForUpdates = reloaded.CheckForUpdates;
-        _config.LastUpdateCheckUtc = reloaded.LastUpdateCheckUtc;
-        _config.SkippedVersion = reloaded.SkippedVersion;
-        _config.UiLanguage = reloaded.UiLanguage;
-
-        _config.PushToTalk = reloaded.PushToTalk;
-
+        // The rest of these do keep their own copy, so they are told again by hand.
         _hook.ConfirmKey = _config.ConfirmKey;
         _hook.CancelKey = _config.CancelKey;
         _controller.Binding = _config.PushToTalk ?? PttBinding.FromKey(_config.TalkKey);
@@ -1145,11 +1136,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (!silent)
             {
-                MessageBox.Show(
-                    Strings.Current.CouldNotReachGitHub,
-                    "Gaggle",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                Tell(Strings.Current.CouldNotReachGitHub, MessageBoxIcon.Warning);
             }
 
             return;
@@ -1159,11 +1146,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (!silent)
             {
-                MessageBox.Show(
-                    Strings.Current.AlreadyLatest(AppInfo.Name, AppInfo.Version),
-                    "Gaggle",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                Tell(Strings.Current.AlreadyLatest(AppInfo.Name, AppInfo.Version), MessageBoxIcon.Information);
             }
 
             return;
@@ -1234,8 +1217,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     /// <summary>
     /// Downloads and stages the update, then exits so the swap script can take over.
-    /// Shaped like <see cref="DownloadModelAsync"/> deliberately: same guard, same
-    /// progress, same icon, so the two cannot run over each other.
+    /// Goes through <see cref="RunDownloadAsync"/>, which is what stops it and a model
+    /// download running over each other.
     /// </summary>
     private async Task InstallUpdateAsync(ReleaseInfo release)
     {
@@ -1253,34 +1236,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        // Constructed on the UI thread, so its callbacks arrive there too.
-        var progress = new Progress<DownloadProgress>(report =>
+        if (!await RunDownloadAsync(
+                report => Strings.Current.DownloadingUpdate(release.Version, report.Describe()),
+                progress => UpdateInstaller.InstallAsync(release, progress),
+                Strings.Current.UpdateFailed))
         {
-            string text = Strings.Current.DownloadingUpdate(release.Version, report.Describe());
-            _overlay.ShowStatus(text);
-            _tray.Text = Truncate($"Gaggle — {text}", TrayTextLimit);
-        });
-
-        _downloading = true;
-        _busy = true;
-        _statusTimeout.Stop();
-        _tray.Icon = TrayIcons.Create(TrayIcons.Working);
-
-        try
-        {
-            await UpdateInstaller.InstallAsync(release, progress);
-        }
-        catch (Exception ex)
-        {
-            _overlay.HideOverlay();
-            MessageBox.Show(
-                Strings.Current.UpdateFailed(ex.Message),
-                "Gaggle",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
-
-            _downloading = false;
-            _busy = false;
             RefreshStatus();
             return;
         }
