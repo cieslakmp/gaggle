@@ -77,17 +77,23 @@ public sealed class AppConfig
     /// <summary>Rate limit. Automated chat spam in a live race is antisocial.</summary>
     public int MinSecondsBetweenMessages { get; set; } = 3;
 
-    /// <summary>Recording is abandoned past this, to bound transcription time.</summary>
+    /// <summary>
+    /// How long a hold may run before the recording is thrown away. It bounds
+    /// transcription time, and it doubles as the cancel gesture: keep holding and nothing
+    /// is transcribed and nothing is sent.
+    ///
+    /// Long enough that overrunning it reads as a decision rather than an accident. A
+    /// radio call that needs more than this is a call that wanted typing.
+    /// </summary>
     public int MaxRecordingSeconds { get; set; } = 15;
 
     /// <summary>
-    /// The same limit while hands-free, kept shorter deliberately. The watchdog does not
-    /// discard what it stops - it transcribes and sends it - and with
-    /// <see cref="ReviewBeforeSending"/> off nobody reads that first, so this bounds how
-    /// much unattended speech one held control can put into a live race.
+    /// The same limit while hands-free, kept shorter deliberately. Hands-free has no
+    /// overlay to watch, so the sooner a hold that is going nowhere ends, the sooner the
+    /// dropped cue says so - and that cue is the only feedback there is.
     ///
-    /// It bounds it once, not repeatedly: joystick polling reports button edges only, so
-    /// a stuck button produces a single recording rather than one per interval.
+    /// It ends once, not repeatedly: joystick polling reports button edges only, so a
+    /// stuck button produces a single abandoned recording rather than one per interval.
     /// </summary>
     public int HandsFreeMaxRecordingSeconds { get; set; } = 10;
 

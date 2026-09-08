@@ -207,9 +207,10 @@ cannot be seen or answered. With it on the RMS gate and `MessageSanitiser` stop 
 second line of defence and become the only one, so anything that weakens them weighs more
 than it looks. Three things follow, and none are obvious from the code:
 
-- The watchdog (`HandsFreeMaxRecordingSeconds`) *sends* what it stops, it does not discard
-  it. That is deliberate, and it is why the hands-free limit is shorter than
-  `MaxRecordingSeconds`.
+- The watchdog **discards** what it stops. Holding past the limit is the cancel gesture —
+  the only one hands-free has, because there is no overlay to read and no Escape to aim at
+  it. It used to transcribe and send instead; do not put that back without also giving
+  hands-free some other way to abandon a message.
 - `SendOutcome.UnsupportedCharacters` means the message **was** sent — `ChatSender` taps
   the send key before it reports the characters it could not type — so it earns the sent
   cue, not the dropped one.

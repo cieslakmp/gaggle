@@ -133,6 +133,22 @@ public class AppConfigTests : IDisposable
     }
 
     /// <summary>
+    /// The recording limits are the cancel gesture: hold past one and the recording is
+    /// thrown away. Hands-free must not be the longer of the two — it is the mode with no
+    /// overlay to watch, so it is the one that should give up sooner.
+    /// </summary>
+    [Fact]
+    public void HandsFreeGivesUpNoLaterThanReviewDoes()
+    {
+        AppConfig config = AppConfig.LoadFrom(_path);
+
+        Assert.Equal(15, config.MaxRecordingSeconds);
+        Assert.True(
+            config.HandsFreeMaxRecordingSeconds <= config.MaxRecordingSeconds,
+            "Hands-free would hold a recording longer than review mode does.");
+    }
+
+    /// <summary>
     /// UiLanguage is a new key, and the way a new key goes wrong is by being dropped:
     /// it has to serialise by name like the rest and come back as what was written.
     /// </summary>

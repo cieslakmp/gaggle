@@ -37,6 +37,9 @@ public sealed partial class Strings
 
     public string TooQuiet => Pick("Too quiet — nothing sent.", "Za cicho — nic nie wysłano.");
 
+    public string HeldTooLong =>
+        Pick("Held past the limit — nothing sent.", "Przytrzymane za długo — nic nie wysłano.");
+
     public string NoModelLoaded => Pick("No speech model loaded.", "Nie wczytano modelu mowy.");
 
     public string DidNotCatchThat => Pick("Did not catch that.", "Nie zrozumiałem.");
