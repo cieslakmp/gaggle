@@ -33,7 +33,7 @@ public class AppConfigTests : IDisposable
         // having agreed to it. Changing any of them is a product decision, not a tidy-up.
         Assert.True(config.ReviewBeforeSending);
         Assert.False(config.AudibleFeedback);
-        Assert.Equal(10, config.HandsFreeMaxRecordingSeconds);
+        Assert.Equal(5, config.HandsFreeMaxRecordingSeconds);
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class AppConfigTests : IDisposable
 
         Assert.True(config.ReviewBeforeSending);
         Assert.False(config.AudibleFeedback);
-        Assert.Equal(10, config.HandsFreeMaxRecordingSeconds);
+        Assert.Equal(5, config.HandsFreeMaxRecordingSeconds);
         Assert.Equal(20, config.MaxRecordingSeconds);
     }
 
@@ -134,15 +134,16 @@ public class AppConfigTests : IDisposable
 
     /// <summary>
     /// The recording limits are the cancel gesture: hold past one and the recording is
-    /// thrown away. Hands-free must not be the longer of the two — it is the mode with no
-    /// overlay to watch, so it is the one that should give up sooner.
+    /// thrown away. They match today, and hands-free must never become the longer of the
+    /// two — it is the mode with no overlay to watch and no Escape to press, so it cannot
+    /// be the one that holds on longer before giving the pilot their message back.
     /// </summary>
     [Fact]
     public void HandsFreeGivesUpNoLaterThanReviewDoes()
     {
         AppConfig config = AppConfig.LoadFrom(_path);
 
-        Assert.Equal(15, config.MaxRecordingSeconds);
+        Assert.Equal(5, config.MaxRecordingSeconds);
         Assert.True(
             config.HandsFreeMaxRecordingSeconds <= config.MaxRecordingSeconds,
             "Hands-free would hold a recording longer than review mode does.");
