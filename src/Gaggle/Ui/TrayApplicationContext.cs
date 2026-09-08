@@ -85,7 +85,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _tray = new NotifyIcon
         {
-            Icon = TrayIcons.Create(TrayIcons.Idle),
+            Icon = TrayIcons.Idle,
             Text = "Gaggle",
             Visible = true,
             ContextMenuStrip = _menu,
@@ -403,7 +403,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             : _config.HandsFreeMaxRecordingSeconds) * 1000;
         _recordingLimit.Start();
 
-        _tray.Icon = TrayIcons.Create(TrayIcons.Recording);
+        _tray.Icon = TrayIcons.Recording;
         Cue(CueTones.PlayStarted);
         _overlay.ShowStatus(Strings.Current.Listening);
         _statusTimeout.Stop();
@@ -451,7 +451,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         MemoryStream? audio = _recorder.Stop();
-        _tray.Icon = TrayIcons.Create(TrayIcons.Working);
+        _tray.Icon = TrayIcons.Working;
 
         if (audio is null)
         {
@@ -932,7 +932,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _downloading = true;
         _busy = true; // Push-to-talk has nothing to use while this runs.
         _statusTimeout.Stop();
-        _tray.Icon = TrayIcons.Create(TrayIcons.Working);
+        _tray.Icon = TrayIcons.Working;
 
         try
         {
@@ -1304,7 +1304,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _statusItem.Text = state;
         _tray.Text = Truncate($"{AppInfo.Name} {AppInfo.Version} — {state}", TrayTextLimit);
-        _tray.Icon = TrayIcons.Create(ready ? TrayIcons.Ready : TrayIcons.Idle);
+        _tray.Icon = ready ? TrayIcons.Ready : TrayIcons.Idle;
     }
 
     // ----------------------------------------------------------------- Cleanup

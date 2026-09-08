@@ -4,17 +4,23 @@ using Gaggle.Interop;
 namespace Gaggle.Ui;
 
 /// <summary>
-/// Draws the tray icon at runtime — a glider silhouette circling a thermal — so the
-/// repository carries no binary assets and the icon can recolour to show state.
+/// The tray icon in each of its states — a glider silhouette circling a thermal — drawn
+/// at runtime so the repository carries no binary assets and the icon can recolour to
+/// show what the app is doing.
+///
+/// Built once each and held for the life of the process. NotifyIcon does not take
+/// ownership of what it is handed, so drawing a fresh icon per state change leaked a GDI
+/// handle every time — and the state changes on every recording, every send and every
+/// time Condor comes or goes.
 /// </summary>
 internal static class TrayIcons
 {
-    public static readonly Color Idle = Color.FromArgb(150, 160, 175);
-    public static readonly Color Ready = Color.FromArgb(120, 200, 255);
-    public static readonly Color Recording = Color.FromArgb(255, 95, 95);
-    public static readonly Color Working = Color.FromArgb(255, 205, 100);
+    public static readonly Icon Idle = Draw(Color.FromArgb(150, 160, 175));
+    public static readonly Icon Ready = Draw(Color.FromArgb(120, 200, 255));
+    public static readonly Icon Recording = Draw(Color.FromArgb(255, 95, 95));
+    public static readonly Icon Working = Draw(Color.FromArgb(255, 205, 100));
 
-    public static Icon Create(Color colour)
+    private static Icon Draw(Color colour)
     {
         using var bitmap = new Bitmap(32, 32);
 
