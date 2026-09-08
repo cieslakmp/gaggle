@@ -95,8 +95,8 @@ Gaggle lives in the notification area — there is no main window.
 2. Right-click → **Microphone** → pick your headset.
 3. Right-click → **Push-to-talk…** to bind a key or a joystick button, unless the
    Caps Lock default suits you.
-4. Right-click → **Language** if you speak something other than English. This needs a
-   multilingual model — see below.
+4. Right-click → **Speech language** if you speak something other than English. This
+   needs a multilingual model — see below.
 5. Start Condor. The tray icon turns blue when everything is ready.
 6. Hold your push-to-talk control, speak, release.
 
@@ -163,6 +163,7 @@ mode too.
 | `SilenceThresholdRms` | `0.005` | Below this, audio is never transcribed |
 | `WhisperModelFile` | `ggml-base.en.bin` | Model in `%APPDATA%\Gaggle` |
 | `Language` | `en` | `en` or `auto` from the tray; `pl`/`de`/`es` by hand to pin one |
+| `UiLanguage` | Windows display language | `English` or `Polish` — the language Gaggle's own menus are written in |
 | `TranscriptionThreads` | `0` | `0` uses every hardware thread. Lower it if Condor stutters |
 | `FastTranscription` | `true` | Trims Whisper's 30-second window to what you actually said |
 | `MaxMessageLength` | `120` | Longest message typed into chat |
@@ -171,8 +172,8 @@ mode too.
 
 ## Languages
 
-Right-click the tray icon → **Language**. There are two choices, because there are
-only two behaviours:
+Right-click the tray icon → **Speech language**. There are two choices, because there
+are only two behaviours:
 
 | Choice | What happens | Model |
 |---|---|---|
@@ -199,6 +200,20 @@ still pin a language by hand: set `Language` in the config file to `pl`, `de` or
 Multilingual costs nothing extra in download size at the same tier: `ggml-base.bin` and
 `ggml-base.en.bin` are both 141 MB. The larger multilingual models are bigger because
 they are bigger models, not because they are multilingual.
+
+### Interface language
+
+Right-click the tray icon → **App language** for **English** or **Polski**. The menus,
+the settings window and the overlay switch straight away — no restart.
+
+This is a different setting from **Speech language** above, and the two do not affect
+each other. **Speech language** is what you say into the microphone; **App language** is
+what Gaggle's own menus are written in. A Polish pilot who calls in English wants a
+Polish interface *and* the English-only speech model, which is the faster pairing.
+
+On a fresh install Gaggle follows your Windows display language, so Polish Windows
+starts in Polish. Change it once and the choice is remembered (`UiLanguage` in the
+config file).
 
 ### If transcription is slow
 
