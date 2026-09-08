@@ -37,9 +37,6 @@ public sealed partial class Strings
     /// <summary>Switches the app over. Call on the UI thread.</summary>
     public static void Use(UiLanguage language) => Current = For(language);
 
-    /// <summary>Which language this table holds.</summary>
-    public UiLanguage Language => _language;
-
     /// <summary>
     /// The Windows display language, mapped onto what Gaggle can speak. A first run on
     /// Polish Windows should not have to be translated into Polish through an English
