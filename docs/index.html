@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaggle — push-to-talk voice chat for Condor Soaring Simulator</title>
+<meta name="description" content="Hold a key, say your message, and Gaggle types it into Condor's in-game chat. Speech recognition runs entirely on your own machine.">
+
+<meta property="og:title" content="Gaggle — push-to-talk voice chat for Condor">
+<meta property="og:description" content="Talk to the gaggle without taking a hand off the stick. Free, open source, and entirely offline.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://cieslakmp.github.io/gaggle/">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 19 L16 7 L29 19 L16 15 Z' fill='%232f6fb0'/%3E%3C/svg%3E">
+
+<style>
+  :root {
+    color-scheme: light dark;
+
+    --ink:        #16202b;
+    --ink-soft:   #55636f;
+    --ground:     #f4f7fa;
+    --card:       #ffffff;
+    --edge:       #dde5ed;
+    --sky:        #2f6fb0;
+    --sky-deep:   #245891;
+    --warn-ink:   #6b4400;
+    --warn-bg:    #fff7e6;
+    --warn-edge:  #f0d9a8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:      #e8edf2;
+      --ink-soft: #9aa8b6;
+      --ground:   #11161c;
+      --card:     #182028;
+      --edge:     #2a3540;
+      --sky:      #5c9fd8;
+      --sky-deep: #7db4e4;
+      --warn-ink: #f0d5a0;
+      --warn-bg:  #2a2318;
+      --warn-edge:#4a3d24;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 0 20px 72px;
+    background: var(--ground);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 680px; margin: 0 auto; }
+
+  header { padding: 72px 0 8px; text-align: center; }
+
+  .mark { width: 56px; height: 56px; margin-bottom: 18px; }
+
+  h1 { margin: 0; font-size: 2.6rem; letter-spacing: -0.02em; font-weight: 700; }
+
+  .tagline { margin: 10px 0 0; font-size: 1.2rem; color: var(--ink-soft); }
+
+  .lede { margin: 28px 0 0; font-size: 1.05rem; }
+
+  .aside { color: var(--ink-soft); font-size: 0.95rem; }
+
+  .download { margin: 40px 0 0; text-align: center; }
+
+  .button {
+    display: inline-block;
+    padding: 17px 42px;
+    border-radius: 10px;
+    background: var(--sky);
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 2px 10px rgb(47 111 176 / 28%);
+  }
+
+  .button:hover, .button:focus-visible { background: var(--sky-deep); }
+
+  .meta { margin: 14px 0 0; font-size: 0.9rem; color: var(--ink-soft); }
+
+  .meta a { color: inherit; }
+
+  h2 {
+    margin: 52px 0 14px;
+    font-size: 1.25rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    padding: 22px 26px;
+  }
+
+  .warn {
+    background: var(--warn-bg);
+    border-color: var(--warn-edge);
+    color: var(--warn-ink);
+  }
+
+  .warn strong { color: inherit; }
+
+  ol, ul { margin: 0; padding-left: 22px; }
+  li + li { margin-top: 10px; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.88em;
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    padding: 2px 6px;
+    border-radius: 5px;
+  }
+
+  pre {
+    margin: 14px 0 0;
+    padding: 13px 16px;
+    overflow-x: auto;
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    border-radius: 8px;
+  }
+
+  pre code { background: none; padding: 0; }
+
+  a { color: var(--sky); }
+
+  footer {
+    margin: 60px 0 0;
+    padding-top: 26px;
+    border-top: 1px solid var(--edge);
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  footer a { margin: 0 10px; }
+
+  @media (max-width: 520px) {
+    header { padding-top: 48px; }
+    h1 { font-size: 2.1rem; }
+    .card { padding: 18px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M3 19 L16 7 L29 19 L16 15 Z" fill="var(--sky)"/>
+    </svg>
+    <h1>Gaggle</h1>
+    <p class="tagline">Push-to-talk voice chat for Condor Soaring Simulator</p>
+  </header>
+
+  <p class="lede">
+    Hold a key or a joystick button, say your message, and Gaggle types it into Condor's
+    in-game chat — so you can talk to the gaggle without taking a hand off the stick to
+    type.
+  </p>
+
+  <p class="aside">
+    Speech recognition runs entirely on your own machine. No account, no API key, no cost,
+    and no network round-trip in the middle of a race. Speak English, Polish, German or
+    Spanish; anything that isn't English is translated to English on the way into chat.
+  </p>
+
+  <div class="download">
+    <a class="button" id="download"
+       href="https://github.com/cieslakmp/gaggle/releases/latest/download/Gaggle-win-x64.zip">
+      Download for Windows
+    </a>
+    <p class="meta">
+      <span id="release">Latest release</span> · Windows 10 or 11, 64-bit · free and open source
+    </p>
+  </div>
+
+  <h2>Windows will warn you the first time</h2>
+
+  <div class="card warn">
+    <p style="margin-top:0">
+      <strong>This is expected, and it is not a virus warning.</strong> Gaggle isn't
+      code-signed — a certificate is a recurring cost for a free tool — so the first
+      launch shows <strong>"Windows protected your PC"</strong>. That is SmartScreen
+      reacting to an unknown publisher.
+    </p>
+    <p style="margin-bottom:0">
+      Click <strong>More info</strong>, then <strong>Run anyway</strong>. Windows also
+      marks anything extracted from a downloaded zip as untrusted, and that mark follows
+      the files out of the archive — clearing it on the zip before you extract saves the
+      argument:
+    </p>
+    <pre><code>Unblock-File .\Gaggle-win-x64.zip</code></pre>
+  </div>
+
+  <h2>Getting started</h2>
+
+  <div class="card">
+    <ol>
+      <li>
+        Extract the zip somewhere permanent. Keep <code>Gaggle.exe</code> and the
+        <code>runtimes</code> folder <strong>together</strong> — the executable on its own
+        cannot load the speech model.
+      </li>
+      <li>
+        Run it. Gaggle lives in the notification area; there is no main window.
+      </li>
+      <li>
+        Right-click the tray icon → <strong>Speech model</strong> and pick one. It
+        downloads once: 141 MB for English, or 465 MB if you want it to understand other
+        languages.
+      </li>
+      <li>
+        Right-click → <strong>Microphone</strong> for your headset, and
+        <strong>Push-to-talk…</strong> to bind a key or a joystick button.
+      </li>
+      <li>
+        Start Condor. The tray icon turns blue when everything is ready — then hold your
+        button, speak, and release.
+      </li>
+    </ol>
+  </div>
+
+  <h2>Good to know</h2>
+
+  <div class="card">
+    <ul>
+      <li>
+        <strong>You read every message before it sends.</strong> The transcript appears in
+        a small overlay: Enter sends it, Escape discards it. Changed your mind mid-sentence?
+        Keep holding the button past the recording limit and it is thrown away.
+      </li>
+      <li>
+        <strong>There's a hands-free mode for VR</strong>, where that overlay is a desktop
+        window you cannot see. It sends without asking, so it warns you once before turning
+        it on.
+      </li>
+      <li>
+        <strong>It updates itself.</strong> Gaggle checks for a new release once a day and
+        offers it in the tray menu with the release notes. Nothing is touched until the
+        download has been checked against its published checksum.
+      </li>
+      <li>
+        <strong>No installer, no admin rights, nothing in the registry.</strong> Settings
+        and models live in <code>%APPDATA%\Gaggle</code>. Delete the folder and the
+        executable and it is gone.
+      </li>
+    </ul>
+  </div>
+
+  <footer>
+    <a href="https://github.com/cieslakmp/gaggle">Source on GitHub</a>
+    <a href="https://github.com/cieslakmp/gaggle/releases">All releases</a>
+    <a href="https://github.com/cieslakmp/gaggle/issues/new/choose">Report a problem</a>
+    <a id="checksum"
+       href="https://github.com/cieslakmp/gaggle/releases/latest/download/Gaggle-win-x64.zip.sha256">Checksum</a>
+    <p style="margin:18px 0 0">MIT licensed · by Maciej Cieslak — VLZ</p>
+  </footer>
+
+</div>
+
+<script>
+// Progressive enhancement, and nothing more: the download link above is a permanent
+// GitHub URL that always resolves to the newest release, so it works with this script
+// blocked, failing, or rate-limited (the API allows 60 anonymous calls an hour per IP).
+// All this does is name the version you are about to get.
+(async () => {
+  const line = document.getElementById('release');
+
+  try {
+    const response = await fetch('https://api.github.com/repos/cieslakmp/gaggle/releases/latest');
+    if (!response.ok) return;
+
+    const release = await response.json();
+    const asset = (release.assets || []).find(a => a.name.endsWith('-win-x64.zip'));
+
+    const parts = [`Version ${String(release.tag_name || '').replace(/^v/, '')}`];
+
+    if (asset) {
+      parts.push(`${(asset.size / 1048576).toFixed(0)} MB`);
+    }
+
+    if (release.published_at) {
+      parts.push(new Date(release.published_at).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric',
+      }));
+    }
+
+    line.textContent = parts.join(' · ');
+  } catch {
+    // Leave the static text alone. There is nothing here worth showing an error for.
+  }
+})();
+</script>
+</body>
+</html>

@@ -34,6 +34,15 @@ and opens a draft release. It publishes the zip and a `.sha256` beside it; the i
 updater will not install a release that has no checksum. The tag must be annotated — its
 message becomes the release notes.
 
+**The asset name carries no version, and that is load-bearing twice over.**
+`Gaggle-win-x64.zip` is what makes
+`releases/latest/download/Gaggle-win-x64.zip` resolve — GitHub matches that path against
+the newest release by exact asset name, so a version in there would break the download
+page's button and every link already shared. The updater matches the `-win-x64.zip`
+suffix, so it survives a rename but not a change of suffix. And never publish a second
+asset ending in that suffix: the updater takes the last match it sees, and which one that
+is depends on the order the API happens to return them in.
+
 The tag is also where the version comes from: `release.yml` passes `-p:Version=<tag>` to
 the build and publish, and `<Version>` in the csproj is a `0.0.0` placeholder. So a
 release needs no commit of its own — which is the point, because a version-bump commit on
@@ -61,6 +70,13 @@ is `gh release delete <tag> --cleanup-tag`, then tag and push again — which de
 draft someone may be reading, and takes it with them if they published it in the meantime.
 Say so before you do it, or edit the draft's notes in place with `gh release edit` and
 leave the tag alone.
+
+`docs/index.html` is the download page, served by GitHub Pages from `/docs` on `main` at
+<https://cieslakmp.github.io/gaggle/>. It is the link handed to people who do not live on
+GitHub, and it needs nothing done to it at release time: the button points at
+`releases/latest/download/Gaggle-win-x64.zip`, which GitHub resolves against the newest
+release, and the version line is filled in from the releases API with the static link as
+the fallback. Editing it is a normal commit; there is no build step and no framework.
 
 ## Invariants
 
