@@ -43,6 +43,25 @@ fails: a mistyped property leaves the placeholder in place and ships a zip stamp
 The "Check the build was stamped with the tag version" step reads it back off the built
 assembly for that reason. Do not drop it.
 
+**Write the tag message with `--cleanup=verbatim`.** `git tag -a -F notes.md` applies the
+same cleanup a commit message gets, which **strips every line starting with `#`** as a
+comment. Markdown headings are exactly that, so `## What changed` disappears from the tag,
+from the release notes built out of it, and from the published release — with nothing
+anywhere to say a line was dropped. Verified: it ate a `###` heading out of the v0.7.0
+notes, and the release looked perfectly fine without it.
+
+```bash
+git tag -a v0.7.0 --cleanup=verbatim -F notes.md
+git tag -l v0.7.0 --format='%(contents:body)'   # read it back before pushing
+```
+
+**Fixing a draft means deleting the release, not just the tag.** Re-pushing a tag over an
+existing draft does not rebuild it; `release.yml` only runs on a new tag. So a correction
+is `gh release delete <tag> --cleanup-tag`, then tag and push again — which destroys the
+draft someone may be reading, and takes it with them if they published it in the meantime.
+Say so before you do it, or edit the draft's notes in place with `gh release edit` and
+leave the tag alone.
+
 ## Invariants
 
 These look like arbitrary complexity and are not. Breaking any of them produces
