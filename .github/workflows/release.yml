@@ -77,10 +77,22 @@ jobs:
           if (-not (Test-Path publish/Gaggle.exe)) { throw "Gaggle.exe missing from publish output" }
           if (-not (Test-Path publish/runtimes/win-x64/whisper.dll)) { throw "whisper native libraries missing from publish output" }
 
-          # The in-app updater finds these assets by suffix: "-win-x64.zip" and
-          # "-win-x64.zip.sha256". Renaming either breaks every copy already installed,
-          # which will not show up in CI - see src/Gaggle/Update/GitHubReleases.cs.
-          $name = "Gaggle-${{ steps.version.outputs.version }}-win-x64.zip"
+          # Two things depend on this name and neither will complain if it changes.
+          #
+          # The in-app updater finds its assets by suffix - "-win-x64.zip" and
+          # "-win-x64.zip.sha256" - so every copy already installed breaks if the suffix
+          # goes. See src/Gaggle/Update/GitHubReleases.cs.
+          #
+          # And the name carries no version on purpose, because that is what makes
+          # github.com/cieslakmp/gaggle/releases/latest/download/Gaggle-win-x64.zip work:
+          # GitHub resolves that path against the newest release only for an asset named
+          # exactly this. It is the download link on the site and the one link handed to
+          # people, so a version in here would break it on the day it was published.
+          #
+          # Never publish a second asset ending in "-win-x64.zip" either: the updater
+          # takes the last suffix match it sees, and which one that is comes down to the
+          # order the API returns them in.
+          $name = "Gaggle-win-x64.zip"
 
           # Ship the executable and the native runtimes only; the pdb is noise for users.
           Compress-Archive -Path publish/Gaggle.exe, publish/runtimes -DestinationPath $name -CompressionLevel Optimal

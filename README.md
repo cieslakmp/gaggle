@@ -20,9 +20,12 @@ no account, no cost, and no network round-trip in the middle of a race.
 
 ## Download
 
-Grab the latest zip from [**Releases**](https://github.com/cieslakmp/gaggle/releases/latest)
-and extract it somewhere permanent. Nothing to install: no .NET runtime, no
-administrator rights.
+**[cieslakmp.github.io/gaggle](https://cieslakmp.github.io/gaggle/)** — the download page,
+and the link worth sharing with anyone who does not live on GitHub.
+
+Or take the zip straight from
+[Releases](https://github.com/cieslakmp/gaggle/releases/latest) and extract it somewhere
+permanent. Nothing to install: no .NET runtime, no administrator rights.
 
 Keep `Gaggle.exe` and the `runtimes` folder **together** — the executable alone cannot
 load the speech model.
