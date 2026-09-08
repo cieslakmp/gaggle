@@ -44,6 +44,17 @@
     }
   }
 
+  /*
+    Both languages sit in the page together, and only one is ever shown. English is what
+    you get with no script at all — the :not() below matches until the toggle sets
+    data-lang — so a blocked script costs the Polish text, never the page.
+
+    Nothing here is given a display value, only taken away, so a paragraph stays a block
+    and a span stays inline when it comes back.
+  */
+  :root:not([data-lang="pl"]) [data-pl] { display: none; }
+  :root[data-lang="pl"] [data-en] { display: none; }
+
   * { box-sizing: border-box; }
 
   body {
@@ -57,7 +68,34 @@
 
   .wrap { max-width: 680px; margin: 0 auto; }
 
-  header { padding: 72px 0 8px; text-align: center; }
+  .langs {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    padding-top: 20px;
+    min-height: 52px;
+  }
+
+  .langs button {
+    border: 1px solid var(--edge);
+    background: var(--card);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 5px 13px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+
+  .langs button:hover { color: var(--ink); }
+
+  .langs button[aria-pressed="true"] {
+    background: var(--sky);
+    border-color: var(--sky);
+    color: #fff;
+  }
+
+  header { padding: 20px 0 8px; text-align: center; }
 
   .mark { width: 56px; height: 56px; margin-bottom: 18px; }
 
@@ -87,8 +125,6 @@
 
   .meta { margin: 14px 0 0; font-size: 0.9rem; color: var(--ink-soft); }
 
-  .meta a { color: inherit; }
-
   h2 {
     margin: 52px 0 14px;
     font-size: 1.25rem;
@@ -108,8 +144,6 @@
     border-color: var(--warn-edge);
     color: var(--warn-ink);
   }
-
-  .warn strong { color: inherit; }
 
   ol, ul { margin: 0; padding-left: 22px; }
   li + li { margin-top: 10px; }
@@ -146,7 +180,6 @@
   footer a { margin: 0 10px; }
 
   @media (max-width: 520px) {
-    header { padding-top: 48px; }
     h1 { font-size: 2.1rem; }
     .card { padding: 18px 20px; }
   }
@@ -155,66 +188,105 @@
 <body>
 <div class="wrap">
 
+  <nav class="langs" id="langs" hidden>
+    <button type="button" data-set-lang="en" aria-pressed="true">English</button>
+    <button type="button" data-set-lang="pl" aria-pressed="false">Polski</button>
+  </nav>
+
   <header>
     <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
       <path d="M3 19 L16 7 L29 19 L16 15 Z" fill="var(--sky)"/>
     </svg>
     <h1>Gaggle</h1>
-    <p class="tagline">Push-to-talk voice chat for Condor Soaring Simulator</p>
+    <p class="tagline">
+      <span data-en>Push-to-talk voice chat for Condor Soaring Simulator</span>
+      <span data-pl>Czat głosowy z przyciskiem nadawania do Condor Soaring Simulator</span>
+    </p>
   </header>
 
-  <p class="lede">
+  <p class="lede" data-en>
     Hold a key or a joystick button, say your message, and Gaggle types it into Condor's
     in-game chat — so you can talk to the gaggle without taking a hand off the stick to
     type.
   </p>
+  <p class="lede" data-pl>
+    Przytrzymaj klawisz lub przycisk joysticka, powiedz wiadomość, a Gaggle wpisze ją na
+    czat w Condorze — możesz rozmawiać z kominem, nie zdejmując ręki z drążka.
+  </p>
 
-  <p class="aside">
+  <p class="aside" data-en>
     Speech recognition runs entirely on your own machine. No account, no API key, no cost,
     and no network round-trip in the middle of a race. Speak English, Polish, German or
     Spanish; anything that isn't English is translated to English on the way into chat.
+  </p>
+  <p class="aside" data-pl>
+    Rozpoznawanie mowy działa w całości na Twoim komputerze. Bez konta, bez klucza API,
+    bez opłat i bez łączenia się z siecią w środku wyścigu. Mów po angielsku, polsku,
+    niemiecku lub hiszpańsku; wszystko, co nie jest po angielsku, zostanie przetłumaczone
+    na angielski w drodze na czat.
   </p>
 
   <div class="download">
     <a class="button" id="download"
        href="https://github.com/cieslakmp/gaggle/releases/latest/download/Gaggle-win-x64.zip">
-      Download for Windows
+      <span data-en>Download for Windows</span>
+      <span data-pl>Pobierz dla Windows</span>
     </a>
     <p class="meta">
-      <span id="release">Latest release</span> · Windows 10 or 11, 64-bit · free and open source
+      <span id="release" data-en>Latest release</span>
+      <span id="release-pl" data-pl>Najnowsze wydanie</span>
+      <span data-en> · Windows 10 or 11, 64-bit · free and open source</span>
+      <span data-pl> · Windows 10 lub 11, 64-bitowy · za darmo, otwarty kod</span>
     </p>
   </div>
 
-  <h2>Windows will warn you the first time</h2>
+  <h2>
+    <span data-en>Windows will warn you the first time</span>
+    <span data-pl>Windows ostrzeże Cię przy pierwszym uruchomieniu</span>
+  </h2>
 
   <div class="card warn">
-    <p style="margin-top:0">
+    <p style="margin-top:0" data-en>
       <strong>This is expected, and it is not a virus warning.</strong> Gaggle isn't
       code-signed — a certificate is a recurring cost for a free tool — so the first
       launch shows <strong>"Windows protected your PC"</strong>. That is SmartScreen
       reacting to an unknown publisher.
     </p>
-    <p style="margin-bottom:0">
+    <p style="margin-top:0" data-pl>
+      <strong>Tak ma być — to nie jest ostrzeżenie o wirusie.</strong> Gaggle nie jest
+      podpisany cyfrowo (certyfikat to koszt, który wraca co roku, a narzędzie jest
+      darmowe), więc przy pierwszym uruchomieniu zobaczysz
+      <strong>„System Windows ochronił Twój komputer”</strong>. To SmartScreen reaguje na
+      nieznanego wydawcę.
+    </p>
+    <p style="margin-bottom:0" data-en>
       Click <strong>More info</strong>, then <strong>Run anyway</strong>. Windows also
       marks anything extracted from a downloaded zip as untrusted, and that mark follows
       the files out of the archive — clearing it on the zip before you extract saves the
       argument:
     </p>
+    <p style="margin-bottom:0" data-pl>
+      Kliknij <strong>Więcej informacji</strong>, a potem <strong>Uruchom mimo to</strong>.
+      Windows oznacza też jako niezaufane wszystko, co wypakujesz z pobranego archiwum, i
+      ten znacznik zostaje na plikach — usunięcie go z archiwum przed wypakowaniem oszczędza
+      kłopotu:
+    </p>
     <pre><code>Unblock-File .\Gaggle-win-x64.zip</code></pre>
   </div>
 
-  <h2>Getting started</h2>
+  <h2>
+    <span data-en>Getting started</span>
+    <span data-pl>Pierwsze kroki</span>
+  </h2>
 
   <div class="card">
-    <ol>
+    <ol data-en>
       <li>
         Extract the zip somewhere permanent. Keep <code>Gaggle.exe</code> and the
         <code>runtimes</code> folder <strong>together</strong> — the executable on its own
         cannot load the speech model.
       </li>
-      <li>
-        Run it. Gaggle lives in the notification area; there is no main window.
-      </li>
+      <li>Run it. Gaggle lives in the notification area; there is no main window.</li>
       <li>
         Right-click the tray icon → <strong>Speech model</strong> and pick one. It
         downloads once: 141 MB for English, or 465 MB if you want it to understand other
@@ -229,12 +301,36 @@
         button, speak, and release.
       </li>
     </ol>
+    <ol data-pl>
+      <li>
+        Wypakuj archiwum w stałe miejsce. Trzymaj <code>Gaggle.exe</code> i folder
+        <code>runtimes</code> <strong>razem</strong> — sam plik wykonywalny nie wczyta
+        modelu mowy.
+      </li>
+      <li>Uruchom program. Gaggle siedzi w obszarze powiadomień; nie ma głównego okna.</li>
+      <li>
+        Kliknij prawym przyciskiem ikonę w zasobniku → <strong>Model mowy</strong> i wybierz
+        jeden. Pobiera się raz: 141 MB dla angielskiego lub 465 MB, jeśli ma rozumieć inne
+        języki.
+      </li>
+      <li>
+        Prawym przyciskiem → <strong>Mikrofon</strong> dla Twoich słuchawek i
+        <strong>Przycisk nadawania…</strong>, aby przypisać klawisz lub przycisk joysticka.
+      </li>
+      <li>
+        Uruchom Condora. Ikona w zasobniku zrobi się niebieska, gdy wszystko jest gotowe —
+        wtedy przytrzymaj przycisk, mów i puść.
+      </li>
+    </ol>
   </div>
 
-  <h2>Good to know</h2>
+  <h2>
+    <span data-en>Good to know</span>
+    <span data-pl>Warto wiedzieć</span>
+  </h2>
 
   <div class="card">
-    <ul>
+    <ul data-en>
       <li>
         <strong>You read every message before it sends.</strong> The transcript appears in
         a small overlay: Enter sends it, Escape discards it. Changed your mind mid-sentence?
@@ -256,50 +352,141 @@
         executable and it is gone.
       </li>
     </ul>
+    <ul data-pl>
+      <li>
+        <strong>Każdą wiadomość czytasz przed wysłaniem.</strong> Transkrypcja pojawia się
+        w małym okienku: Enter wysyła, Escape odrzuca. Zmieniłeś zdanie w połowie? Trzymaj
+        przycisk dłużej niż limit nagrania, a nagranie zostanie skasowane.
+      </li>
+      <li>
+        <strong>Jest tryb automatyczny dla VR</strong>, gdzie tego okienka po prostu nie
+        widać. Wysyła bez pytania, więc program ostrzega raz, zanim go włączysz.
+      </li>
+      <li>
+        <strong>Aktualizuje się sam.</strong> Gaggle raz dziennie sprawdza, czy jest nowe
+        wydanie, i proponuje je w menu zasobnika razem z opisem zmian. Nic nie zostaje
+        ruszone, dopóki pobrany plik nie zgodzi się z opublikowaną sumą kontrolną.
+      </li>
+      <li>
+        <strong>Bez instalatora, bez praw administratora, nic w rejestrze.</strong>
+        Ustawienia i modele leżą w <code>%APPDATA%\Gaggle</code>. Usuń ten folder i plik
+        wykonywalny i po programie.
+      </li>
+    </ul>
   </div>
 
   <footer>
-    <a href="https://github.com/cieslakmp/gaggle">Source on GitHub</a>
-    <a href="https://github.com/cieslakmp/gaggle/releases">All releases</a>
-    <a href="https://github.com/cieslakmp/gaggle/issues/new/choose">Report a problem</a>
-    <a id="checksum"
-       href="https://github.com/cieslakmp/gaggle/releases/latest/download/Gaggle-win-x64.zip.sha256">Checksum</a>
-    <p style="margin:18px 0 0">MIT licensed · by Maciej Cieslak — VLZ</p>
+    <a href="https://github.com/cieslakmp/gaggle">
+      <span data-en>Source on GitHub</span><span data-pl>Kod na GitHubie</span>
+    </a>
+    <a href="https://github.com/cieslakmp/gaggle/releases">
+      <span data-en>All releases</span><span data-pl>Wszystkie wydania</span>
+    </a>
+    <a href="https://github.com/cieslakmp/gaggle/issues/new/choose">
+      <span data-en>Report a problem</span><span data-pl>Zgłoś problem</span>
+    </a>
+    <a href="https://github.com/cieslakmp/gaggle/releases/latest/download/Gaggle-win-x64.zip.sha256">
+      <span data-en>Checksum</span><span data-pl>Suma kontrolna</span>
+    </a>
+    <p style="margin:18px 0 0">
+      <span data-en>MIT licensed · by Maciej Cieslak — VLZ</span>
+      <span data-pl>Licencja MIT · Maciej Cieślak — VLZ</span>
+    </p>
   </footer>
 
 </div>
 
 <script>
-// Progressive enhancement, and nothing more: the download link above is a permanent
-// GitHub URL that always resolves to the newest release, so it works with this script
-// blocked, failing, or rate-limited (the API allows 60 anonymous calls an hour per IP).
-// All this does is name the version you are about to get.
-(async () => {
-  const line = document.getElementById('release');
+(() => {
+  const KEY = 'gaggle-lang';
+  const root = document.documentElement;
 
-  try {
-    const response = await fetch('https://api.github.com/repos/cieslakmp/gaggle/releases/latest');
-    if (!response.ok) return;
+  const TITLES = {
+    en: "Gaggle — push-to-talk voice chat for Condor Soaring Simulator",
+    pl: "Gaggle — czat głosowy z przyciskiem nadawania do Condor Soaring Simulator",
+  };
 
-    const release = await response.json();
-    const asset = (release.assets || []).find(a => a.name.endsWith('-win-x64.zip'));
+  // Whatever was chosen last, else what the browser asks for, else English. The query
+  // string wins over both so a Polish link can be shared directly.
+  function initial() {
+    const asked = new URLSearchParams(location.search).get('lang');
+    if (asked === 'pl' || asked === 'en') return asked;
 
-    const parts = [`Version ${String(release.tag_name || '').replace(/^v/, '')}`];
+    try {
+      const saved = localStorage.getItem(KEY);
+      if (saved === 'pl' || saved === 'en') return saved;
+    } catch { /* private mode, blocked storage - fall through */ }
 
-    if (asset) {
-      parts.push(`${(asset.size / 1048576).toFixed(0)} MB`);
+    // In the order the browser lists them, because that list is a ranking. Asking
+    // "is Polish in there anywhere" gets ["en-GB", "pl"] wrong — an English speaker who
+    // also reads Polish, which is not a rare way for a Polish pilot to set up Windows.
+    for (const tag of navigator.languages || [navigator.language || 'en']) {
+      const lang = String(tag).toLowerCase();
+
+      if (lang.startsWith('pl')) return 'pl';
+      if (lang.startsWith('en')) return 'en';
     }
 
-    if (release.published_at) {
-      parts.push(new Date(release.published_at).toLocaleDateString(undefined, {
-        year: 'numeric', month: 'long', day: 'numeric',
-      }));
-    }
-
-    line.textContent = parts.join(' · ');
-  } catch {
-    // Leave the static text alone. There is nothing here worth showing an error for.
+    return 'en';
   }
+
+  function apply(lang) {
+    root.dataset.lang = lang;
+    root.lang = lang;
+    document.title = TITLES[lang];
+
+    for (const button of document.querySelectorAll('[data-set-lang]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.setLang === lang));
+    }
+  }
+
+  let current = initial();
+  apply(current);
+
+  // Revealed only now: with no script there is nothing for the buttons to do, and a
+  // switch that does nothing is worse than no switch.
+  document.getElementById('langs').hidden = false;
+
+  for (const button of document.querySelectorAll('[data-set-lang]')) {
+    button.addEventListener('click', () => {
+      current = button.dataset.setLang;
+      apply(current);
+
+      try { localStorage.setItem(KEY, current); } catch { /* not worth reporting */ }
+    });
+  }
+
+  // Progressive enhancement, and nothing more: the download link is a permanent GitHub
+  // URL that always resolves to the newest release, so it works with this blocked,
+  // failing, or rate-limited (60 anonymous API calls an hour per IP). All this does is
+  // name the version you are about to get.
+  (async () => {
+    try {
+      const response = await fetch('https://api.github.com/repos/cieslakmp/gaggle/releases/latest');
+      if (!response.ok) return;
+
+      const release = await response.json();
+      const asset = (release.assets || []).find(a => a.name.endsWith('-win-x64.zip'));
+      const version = String(release.tag_name || '').replace(/^v/, '');
+      const size = asset ? `${(asset.size / 1048576).toFixed(0)} MB` : null;
+
+      for (const [lang, word] of [['en', 'Version'], ['pl', 'Wersja']]) {
+        const parts = [`${word} ${version}`];
+        if (size) parts.push(size);
+
+        if (release.published_at) {
+          parts.push(new Date(release.published_at).toLocaleDateString(
+            lang === 'pl' ? 'pl-PL' : 'en-GB',
+            { year: 'numeric', month: 'long', day: 'numeric' }));
+        }
+
+        document.getElementById(lang === 'pl' ? 'release-pl' : 'release').textContent =
+          parts.join(' · ');
+      }
+    } catch {
+      // Leave the static text alone. Nothing here is worth showing an error for.
+    }
+  })();
 })();
 </script>
 </body>
