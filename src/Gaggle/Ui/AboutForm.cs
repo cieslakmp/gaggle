@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Windows.Forms;
 using Gaggle.Configuration;
 using Gaggle.Localisation;
@@ -62,7 +61,7 @@ internal sealed class AboutForm : Form
             AutoSize = true,
             Margin = new Padding(2, 10, 0, 0),
         };
-        repository.LinkClicked += (_, _) => Open(AppInfo.RepositoryUrl);
+        repository.LinkClicked += (_, _) => Shell.OpenUrl(AppInfo.RepositoryUrl);
 
         var report = new LinkLabel
         {
@@ -70,7 +69,7 @@ internal sealed class AboutForm : Form
             AutoSize = true,
             Margin = new Padding(2, 4, 0, 0),
         };
-        report.LinkClicked += (_, _) => Open(IssueLink.ChooserUrl);
+        report.LinkClicked += (_, _) => Shell.OpenUrl(IssueLink.ChooserUrl);
 
         var dataLabel = new Label
         {
@@ -87,7 +86,7 @@ internal sealed class AboutForm : Form
             MaximumSize = new Size(ContentWidth, 0),
             Margin = new Padding(2, 4, 0, 0),
         };
-        dataFolder.LinkClicked += (_, _) => Open(AppConfig.DataDirectory);
+        dataFolder.LinkClicked += (_, _) => Shell.OpenPath(AppConfig.DataDirectory);
 
         var close = new Button
         {
@@ -115,20 +114,5 @@ internal sealed class AboutForm : Form
         Controls.Add(layout);
         AcceptButton = close;
         CancelButton = close;
-    }
-
-    /// <summary>
-    /// Hands a URL or folder to the shell. A dead link or a missing folder should not
-    /// take the tray icon down with it, so failures are swallowed.
-    /// </summary>
-    private static void Open(string target)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
-        {
-        }
     }
 }

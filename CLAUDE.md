@@ -101,6 +101,32 @@ C# table of literal pairs rather than a set of `.resx` files, and why nothing he
 grow a satellite assembly without the packaging step and the updater's asset check
 changing with it.
 
+**Anything downloaded is verified before it is used, and bounded while it arrives.** A
+ggml model is parsed by whisper.cpp in native code, so an unverified one is a
+memory-safety surface rather than merely a wrong file — which is why every
+`ModelInstaller.ModelChoice` carries the SHA256 and the exact byte count Hugging Face
+publishes, and why `DownloadAsync` takes the `ModelChoice` rather than a file name: there
+is no overload that can fetch a model without a digest to check it against. **A new model
+added without its hash will not build, and one added with the wrong hash will download in
+full and then always be rejected**, so take both from
+`https://huggingface.co/api/models/ggerganov/whisper.cpp?blobs=true` rather than from a
+local copy. The size is a hard cap, not a hint; it must match what the CDN serves or the
+download aborts. The same reasoning bounds the update package and every text response:
+the checksum cannot be checked until the whole file has landed, so without a cap a host
+that never stops sending fills the disk first.
+
+**A URL from anywhere but a constant goes through `Ui.Shell`.** `UseShellExecute` picks a
+handler by scheme, so a string that is not the http(s) link it looks like is a program
+launch. Only a release's `html_url` is remote today, but the check lives in one place
+because the next one will not announce itself. Use `OpenPath` for the config file and the
+data folder; `OpenUrl` refuses anything that is not http(s).
+
+**An asset name from GitHub is not a file name.** `Path.Combine` returns a rooted string
+unchanged and follows `..\` out of the folder you meant, so `ReleaseInfo.PackageName` goes
+through `UpdateInstaller.PackageFileName` before it touches the disk. `HardeningTests`
+pins that, including the Startup-folder case that turns a download into a program that
+runs at next logon.
+
 **A non-English language needs a multilingual model.** Ask a `ggml-*.en.bin` build for
 Polish and whisper.cpp silently *discards* both the language and the translate request:
 no exception, and nothing logged at any level. It transcribes the audio phonetically as

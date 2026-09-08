@@ -37,6 +37,17 @@ public static class UpdateInstaller
     private static readonly char[] ChecksumSeparators = [' ', '\t'];
 
     /// <summary>
+    /// The most an update package may be. The real one is around 50 MB, so this is room
+    /// to grow rather than a tight fit — it exists to bound a download that would
+    /// otherwise run until the disk filled, because the checksum cannot be verified until
+    /// the whole file has landed.
+    /// </summary>
+    private const long MaxPackageBytes = 500L * 1024 * 1024;
+
+    /// <summary>The name to fall back to when the release does not supply a usable one.</summary>
+    private const string DefaultPackageName = "Gaggle-update.zip";
+
+    /// <summary>
     /// The folder holding the running Gaggle.exe, or null when this is not an installed
     /// copy — a dev run through dotnet, or a renamed executable, either of which would
     /// end up with two copies side by side if updated in place.
@@ -107,6 +118,36 @@ public static class UpdateInstaller
     }
 
     /// <summary>
+    /// The file name to save the package under.
+    /// <see cref="ReleaseInfo.PackageName"/> is whatever GitHub called the asset, so it is
+    /// treated as untrusted text rather than as a file name: <see cref="Path.Combine"/>
+    /// hands back a rooted string unchanged, and follows <c>..\</c> straight out of the
+    /// updates folder — into a Startup folder, given a name chosen for it. Only the leaf
+    /// survives, and only if it is a name a file can actually have.
+    /// </summary>
+    public static string PackageFileName(string? supplied)
+    {
+        if (string.IsNullOrWhiteSpace(supplied))
+        {
+            return DefaultPackageName;
+        }
+
+        string name = Path.GetFileName(supplied.Trim());
+
+        // GetFileName leaves "." and ".." alone, and Path.Combine reads both as a
+        // directory rather than as the file this is supposed to name.
+        if (name.Length == 0
+            || name == "."
+            || name == ".."
+            || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            return DefaultPackageName;
+        }
+
+        return name;
+    }
+
+    /// <summary>
     /// Downloads, verifies and stages a release, then launches the script that swaps it
     /// in. Returns once that script is running; the caller must exit promptly, because
     /// the script is waiting on this process to let go of its own executable.
@@ -134,14 +175,17 @@ public static class UpdateInstaller
 
         Directory.CreateDirectory(UpdatesDirectory);
 
-        string packagePath = Path.Combine(
-            UpdatesDirectory,
-            string.IsNullOrEmpty(release.PackageName) ? "Gaggle-update.zip" : release.PackageName);
+        string packagePath = Path.Combine(UpdatesDirectory, PackageFileName(release.PackageName));
 
         // Written by FileStream rather than by a browser, so the file carries no Mark of
         // the Web and the executable extracted from it does not re-trigger the SmartScreen
         // warning the README documents for a manual download.
-        await FileDownloader.DownloadAsync(release.PackageUrl, packagePath, progress, cancellationToken);
+        await FileDownloader.DownloadAsync(
+            release.PackageUrl,
+            packagePath,
+            MaxPackageBytes,
+            progress,
+            cancellationToken);
 
         try
         {
