@@ -78,6 +78,16 @@ GitHub, and it needs nothing done to it at release time: the button points at
 release, and the version line is filled in from the releases API with the static link as
 the fallback. Editing it is a normal commit; there is no build step and no framework.
 
+It carries English and Polish the same way the app does — both in the file, next to each
+other, so they cannot drift. Mark each with `data-en` / `data-pl`; the CSS only ever
+*removes* display, never sets it, so a `<p>` stays a block and a `<span>` stays inline
+when it comes back. **English is what shows with no script**, because the rule keying on
+`:root:not([data-lang="pl"])` matches until the switcher sets the attribute — so a blocked
+script costs the Polish text, never the page. Detection walks `navigator.languages` in
+order rather than asking whether Polish appears anywhere in it: `["en-GB", "pl"]` is an
+English speaker who also reads Polish, and that is a normal way for a Polish pilot to set
+up Windows. `?lang=pl` overrides everything, so a Polish link can be shared directly.
+
 ## Invariants
 
 These look like arbitrary complexity and are not. Breaking any of them produces
