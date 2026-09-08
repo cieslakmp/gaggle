@@ -162,6 +162,23 @@ public static class FileDownloader
         return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
+    /// <summary>
+    /// Deletes a file, shrugging if it cannot. Both callers use this on a download that
+    /// failed its checksum, where leaving the file behind is the worse outcome — a bad
+    /// model looks installed and is never re-fetched — but failing to remove it is not
+    /// worth reporting over the verification failure that got us here.
+    /// </summary>
+    public static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     /// <summary>The SHA256 of a file as lowercase hex, to match what sha256sum prints.</summary>
     public static async Task<string> ComputeSha256Async(
         string path,

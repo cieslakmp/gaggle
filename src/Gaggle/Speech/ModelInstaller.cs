@@ -94,20 +94,9 @@ public static class ModelInstaller
         {
             // Deleted rather than left on disk: a file this size looks installed, and the
             // menu would tick it and never offer to fetch it again.
-            TryDelete(destinationPath);
+            FileDownloader.TryDelete(destinationPath);
 
             throw new InvalidOperationException(Strings.Current.ModelChecksumMismatch(choice.Name));
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
         }
     }
 

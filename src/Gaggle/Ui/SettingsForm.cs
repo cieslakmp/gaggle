@@ -12,10 +12,8 @@ namespace Gaggle.Ui;
 /// receive (Caps Lock, media keys), and joystick buttons produce no window messages
 /// at all.
 ///
-/// The layout is a single auto-sizing column rather than hand-placed coordinates. Half
-/// the controls here hold two or three sentences of explanation, and a translation runs
-/// longer than the English it replaced — Polish by a fifth or so. Fixed heights turn that
-/// into a clipped sentence, which is the half that mattered.
+/// Built out of <see cref="DialogLayout"/>, which explains why everything here sizes to
+/// its content instead of sitting at fixed coordinates.
 /// </summary>
 internal sealed class SettingsForm : Form
 {
@@ -40,17 +38,9 @@ internal sealed class SettingsForm : Form
         _controller = controller;
         _binding = current;
 
-        Text = Strings.Current.SettingsTitle;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        MinimizeBox = false;
-        StartPosition = FormStartPosition.CenterScreen;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(16);
-        Font = new Font("Segoe UI", 9f);
+        DialogLayout.Prepare(this, Strings.Current.SettingsTitle);
 
-        Label title = Heading(Strings.Current.PushToTalkHeading, 10f);
+        Label title = DialogLayout.Heading(Strings.Current.PushToTalkHeading);
 
         _bindingBox = new TextBox
         {
@@ -61,14 +51,7 @@ internal sealed class SettingsForm : Form
             Margin = new Padding(0, 0, 10, 0),
         };
 
-        _changeButton = new Button
-        {
-            Text = Strings.Current.ChangeBinding,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(120, 0),
-            Margin = new Padding(0),
-        };
+        _changeButton = DialogLayout.Button(Strings.Current.ChangeBinding, new Size(120, 0));
         _changeButton.Click += (_, _) => ToggleCapture();
 
         var bindingRow = new FlowLayoutPanel
@@ -82,9 +65,9 @@ internal sealed class SettingsForm : Form
         bindingRow.Controls.Add(_bindingBox);
         bindingRow.Controls.Add(_changeButton);
 
-        _hint = Prose(SystemColors.GrayText);
+        _hint = DialogLayout.Prose(ContentWidth, SystemColors.GrayText);
 
-        Label devicesTitle = Heading(Strings.Current.DetectedDevices, 10f);
+        Label devicesTitle = DialogLayout.Heading(Strings.Current.DetectedDevices);
 
         _devices = new ListBox
         {
@@ -95,9 +78,9 @@ internal sealed class SettingsForm : Form
 
         // Amber, and only filled in when a joystick binding makes it true. With AutoSize
         // an empty warning takes no room at all rather than leaving a gap.
-        _warning = Prose(Color.FromArgb(160, 90, 0));
+        _warning = DialogLayout.Prose(ContentWidth, DialogLayout.Caution);
 
-        Label sendingTitle = Heading(Strings.Current.SendingHeading, 10f);
+        Label sendingTitle = DialogLayout.Heading(Strings.Current.SendingHeading);
 
         _handsFreeBox = new CheckBox
         {
@@ -109,7 +92,7 @@ internal sealed class SettingsForm : Form
         };
         _handsFreeBox.CheckedChanged += (_, _) => RefreshHandsFree();
 
-        _handsFreeNote = Prose(SystemColors.GrayText);
+        _handsFreeNote = DialogLayout.Prose(ContentWidth, SystemColors.GrayText);
 
         _cuesBox = new CheckBox
         {
@@ -120,53 +103,21 @@ internal sealed class SettingsForm : Form
             Margin = new Padding(0, 12, 0, 0),
         };
 
-        _okButton = new Button
-        {
-            Text = Strings.Current.Ok,
-            DialogResult = DialogResult.OK,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(84, 0),
-            Margin = new Padding(8, 0, 0, 0),
-        };
+        var buttonMargin = new Padding(8, 0, 0, 0);
 
-        var cancelButton = new Button
-        {
-            Text = Strings.Current.Cancel,
-            DialogResult = DialogResult.Cancel,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(84, 0),
-            Margin = new Padding(8, 0, 0, 0),
-        };
+        _okButton = DialogLayout.Button(Strings.Current.Ok, new Size(84, 0), buttonMargin);
+        _okButton.DialogResult = DialogResult.OK;
 
-        // Right to left, so the rightmost button is the one added first.
-        var buttons = new FlowLayoutPanel
-        {
-            FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Anchor = AnchorStyles.Right,
-            Margin = new Padding(0, 16, 0, 0),
-            WrapContents = false,
-        };
-        buttons.Controls.Add(cancelButton);
-        buttons.Controls.Add(_okButton);
+        Button cancelButton = DialogLayout.Button(Strings.Current.Cancel, new Size(84, 0), buttonMargin);
+        cancelButton.DialogResult = DialogResult.Cancel;
 
-        var layout = new TableLayoutPanel
-        {
-            ColumnCount = 1,
-            GrowStyle = TableLayoutPanelGrowStyle.AddRows,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-        };
-        layout.Controls.AddRange([
+        // Cancel is added first, so right-to-left puts it rightmost and OK to its left.
+        FlowLayoutPanel buttons = DialogLayout.ButtonRow(cancelButton, _okButton);
+        buttons.Margin = new Padding(0, 16, 0, 0);
+
+        Controls.Add(DialogLayout.Column(
             title, bindingRow, _hint, devicesTitle, _devices, _warning,
-            sendingTitle, _handsFreeBox, _handsFreeNote, _cuesBox, buttons,
-        ]);
-
-        Controls.Add(layout);
+            sendingTitle, _handsFreeBox, _handsFreeNote, _cuesBox, buttons));
         AcceptButton = _okButton;
         CancelButton = cancelButton;
 
@@ -186,24 +137,6 @@ internal sealed class SettingsForm : Form
     /// <summary>Whether to play the cue tones, valid once the dialog returns OK.</summary>
     public bool AudibleCues => _cuesBox.Checked;
 
-    /// <summary>A section title.</summary>
-    private static Label Heading(string text, float size) => new()
-    {
-        Text = text,
-        Font = new Font("Segoe UI", size, FontStyle.Bold),
-        AutoSize = true,
-        Margin = new Padding(0, 16, 0, 0),
-    };
-
-    /// <summary>A paragraph that wraps at <see cref="ContentWidth"/> and grows downwards.</summary>
-    private static Label Prose(Color colour) => new()
-    {
-        AutoSize = true,
-        MaximumSize = new Size(ContentWidth, 0),
-        ForeColor = colour,
-        Margin = new Padding(0, 6, 0, 0),
-    };
-
     /// <summary>
     /// Says what the checkbox above it actually means, in the colour that matches how
     /// much it matters - the same amber the joystick caveat uses when it applies.
@@ -211,7 +144,7 @@ internal sealed class SettingsForm : Form
     private void RefreshHandsFree()
     {
         _handsFreeNote.ForeColor = _handsFreeBox.Checked
-            ? Color.FromArgb(160, 90, 0)
+            ? DialogLayout.Caution
             : SystemColors.GrayText;
 
         _handsFreeNote.Text = _handsFreeBox.Checked
