@@ -29,7 +29,7 @@ public sealed partial class Strings
     public string PushToTalkSettings => Pick("Push-to-talk…", "Przycisk nadawania…");
 
     public string HandsFreeItem =>
-        Pick("Send without review (hands-free)", "Wysyłaj bez podglądu (bez rąk)");
+        Pick("Send without review (hands-free)", "Wysyłaj bez podglądu (tryb automatyczny)");
 
     public string AudibleCuesItem => Pick("Play audible cues", "Odtwarzaj sygnały dźwiękowe");
 
@@ -149,7 +149,7 @@ public sealed partial class Strings
                 + "what other pilots receive."
                 + "\n\n"
                 + "Turn it on?",
-            "Tryb bez rąk wysyła każdą transkrypcję prosto na czat, razem z "
+            "Tryb automatyczny wysyła każdą transkrypcję prosto na czat, razem z "
                 + "przesłyszeniami, bez możliwości przeczytania jej wcześniej."
                 + "\n\n"
                 + "Istnieje z myślą o VR, gdzie okna podglądu nie da się zobaczyć ani "

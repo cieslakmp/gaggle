@@ -72,7 +72,7 @@ public sealed partial class Strings
     public string HandsFreeCheckbox =>
         Pick(
             "Hands-free — send without reviewing",
-            "Tryb bez rąk — wysyłaj bez podglądu");
+            "Tryb automatyczny — wysyłaj bez podglądu");
 
     public string HandsFreeOnNote =>
         Pick(
@@ -92,7 +92,7 @@ public sealed partial class Strings
                 + "hands-free is for.",
             "Każda wiadomość czeka najpierw w oknie podglądu: Enter wysyła, Escape "
                 + "odrzuca. W VR tego okna nie da się zobaczyć ani potwierdzić — i po "
-                + "to jest tryb bez rąk.");
+                + "to jest tryb automatyczny.");
 
     public string AudibleCuesCheckbox =>
         Pick(
