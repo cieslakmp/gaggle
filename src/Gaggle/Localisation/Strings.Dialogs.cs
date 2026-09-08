@@ -77,21 +77,24 @@ public sealed partial class Strings
     public string HandsFreeOnNote =>
         Pick(
             "Whatever is transcribed goes straight into chat, mishearings included, "
-                + "with nothing to read or discard first. Recordings are also cut "
-                + "shorter than usual, because nobody is watching what the time limit "
-                + "sends.",
+                + "with nothing to read or discard first. Keep holding past the "
+                + "recording limit and the recording is thrown away instead — with no "
+                + "overlay to answer, that is the only way to take a message back.",
             "Cokolwiek zostanie rozpoznane, trafia prosto na czat, razem z "
                 + "przesłyszeniami, bez możliwości przeczytania lub odrzucenia. "
-                + "Nagrania są też krótsze niż zwykle, bo nikt nie patrzy na to, co "
-                + "wysyła limit czasu.");
+                + "Przytrzymaj dłużej niż limit nagrania, a nagranie zostanie "
+                + "skasowane — bez okna podglądu to jedyny sposób, żeby wycofać "
+                + "wiadomość.");
 
     public string HandsFreeOffNote =>
         Pick(
             "Every message waits in the overlay first: Enter sends it, Escape discards "
-                + "it. In VR that overlay cannot be seen or answered — that is what "
-                + "hands-free is for.",
+                + "it, and holding past the recording limit throws it away before it "
+                + "gets there. In VR that overlay cannot be seen or answered — that is "
+                + "what hands-free is for.",
             "Każda wiadomość czeka najpierw w oknie podglądu: Enter wysyła, Escape "
-                + "odrzuca. W VR tego okna nie da się zobaczyć ani potwierdzić — i po "
+                + "odrzuca, a przytrzymanie dłużej niż limit nagrania kasuje ją, zanim "
+                + "tam trafi. W VR tego okna nie da się zobaczyć ani potwierdzić — i po "
                 + "to jest tryb automatyczny.");
 
     public string AudibleCuesCheckbox =>

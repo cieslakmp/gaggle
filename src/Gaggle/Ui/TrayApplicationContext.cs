@@ -91,7 +91,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             Interval = Math.Max(1, _config.MaxRecordingSeconds) * 1000,
         };
-        _recordingLimit.Tick += (_, _) => StopRecordingAndTranscribe();
+        _recordingLimit.Tick += (_, _) => AbandonRecording();
 
         _statusTimeout = new System.Windows.Forms.Timer { Interval = 2500 };
         _statusTimeout.Tick += (_, _) =>
@@ -407,6 +407,38 @@ internal sealed class TrayApplicationContext : ApplicationContext
         Cue(CueTones.PlayStarted);
         _overlay.ShowStatus(Strings.Current.Listening);
         _statusTimeout.Stop();
+    }
+
+    /// <summary>
+    /// The hold ran past its limit, so the recording is thrown away instead of sent.
+    ///
+    /// This is the cancel gesture: keep holding and nothing reaches chat. It matters most
+    /// hands-free, where there is no overlay to read and no Escape to aim at it — holding
+    /// on is the only way to take back something you have already started saying.
+    ///
+    /// The watchdog used to transcribe and send what it stopped. That was the wrong half
+    /// of the trade: a message cut off mid-sentence is worth less than being able to
+    /// abandon one, and hands-free had no way to abandon anything at all.
+    ///
+    /// The key is still held when this fires. Releasing it re-enters
+    /// <see cref="StopRecordingAndTranscribe"/>, which finds the recorder already stopped
+    /// and does nothing — so the gesture ends here, not on release.
+    /// </summary>
+    private void AbandonRecording()
+    {
+        _recordingLimit.Stop();
+
+        if (!_recorder.IsRecording)
+        {
+            return;
+        }
+
+        // Disposed rather than kept: nothing downstream will ever look at it, and these
+        // buffers are 16 kHz mono for as long as the limit allows.
+        using MemoryStream? audio = _recorder.Stop();
+
+        UtteranceFailed(Strings.Current.HeldTooLong);
+        RefreshStatus();
     }
 
     private void StopRecordingAndTranscribe()
