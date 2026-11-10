@@ -5,8 +5,12 @@ namespace Gaggle.Ui;
 
 /// <summary>
 /// The tray icon in each of its states — a glider silhouette circling a thermal — drawn
-/// at runtime so the repository carries no binary assets and the icon can recolour to
-/// show what the app is doing.
+/// at runtime so it can recolour to show what the app is doing.
+///
+/// The same shape exists once as a file, <c>app.ico</c>, because the executable icon
+/// Explorer and the taskbar show is a resource the compiler embeds and cannot come from
+/// here. It is this drawing at <see cref="Ready"/>; nothing enforces the two agreeing,
+/// and a recolour here that is not mirrored there is cosmetic.
 ///
 /// Built once each and held for the life of the process. NotifyIcon does not take
 /// ownership of what it is handed, so drawing a fresh icon per state change leaked a GDI

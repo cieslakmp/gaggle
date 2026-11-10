@@ -10,6 +10,10 @@
     <AssemblyName>Gaggle</AssemblyName>
     <RootNamespace>Gaggle</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The one drawing this app cannot make at runtime: an executable icon is a Win32
+         resource the compiler embeds, so it has to exist as a file. It is Ui/TrayIcons
+         at its Ready blue, drawn on the same 32-pixel canvas. -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
