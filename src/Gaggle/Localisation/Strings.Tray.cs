@@ -33,6 +33,8 @@ public sealed partial class Strings
 
     public string AudibleCuesItem => Pick("Play audible cues", "Odtwarzaj sygnały dźwiękowe");
 
+    public string RunAtLogonItem => Pick("Start with Windows", "Uruchamiaj razem z Windows");
+
     public string OpenConfigFile => Pick("Open config file", "Otwórz plik konfiguracyjny");
 
     public string ReloadConfigItem => Pick("Reload config", "Wczytaj konfigurację ponownie");

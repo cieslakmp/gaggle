@@ -112,6 +112,18 @@ Five seconds is a whole radio call and then some. If you talk in longer sentence
 `MaxRecordingSeconds` in [the config file](#configuration) — but note that it is the
 same number as the cancel gesture, so raising it also makes cancelling slower.
 
+## Starting with Windows
+
+Right-click the tray icon → **Start with Windows**. It writes one value under
+`HKCU\...\CurrentVersion\Run` and nothing else — no service, no scheduled task, no
+elevation — and untick it to remove it again. There is no setting for this in
+`config.json`: the registry is the only copy, so the tick and what actually happens at
+logon cannot drift apart.
+
+Gaggle sits idle until Condor is in the foreground, so there is nothing to gain from
+starting it later. It cannot start *itself* when `Condor.exe` appears — something would
+have to already be running to notice, which is the thing being avoided.
+
 ## Push-to-talk binding
 
 Right-click the tray icon → **Push-to-talk…**, press **Change**, then press the key or

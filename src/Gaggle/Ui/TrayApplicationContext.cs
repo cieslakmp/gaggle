@@ -222,6 +222,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Cue(CueTones.PlaySent);
         };
 
+        // Not a config setting: the registry holds the answer, so there is nothing to
+        // save and nothing that could disagree with it. See StartupRegistration.
+        var startupItem = new ToolStripMenuItem(Strings.Current.RunAtLogonItem);
+        startupItem.Click += (_, _) => StartupRegistration.Set(!StartupRegistration.IsEnabled);
+
         // A rebuilt menu has to come back saying whatever the old one was saying.
         RefreshUpdateItem();
 
@@ -233,6 +238,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _handsFreeItem.Checked = !_config.ReviewBeforeSending;
             _cuesItem.Checked = _config.AudibleFeedback;
+            startupItem.Checked = StartupRegistration.IsEnabled;
         };
 
         menu.Items.Add(_statusItem);
@@ -263,6 +269,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(Strings.Current.PushToTalkSettings, null, (_, _) => ShowSettings());
         menu.Items.Add(_handsFreeItem);
         menu.Items.Add(_cuesItem);
+        menu.Items.Add(startupItem);
         menu.Items.Add(Strings.Current.OpenConfigFile, null, (_, _) => OpenConfig());
         menu.Items.Add(Strings.Current.ReloadConfigItem, null, (_, _) => ReloadConfig());
 
